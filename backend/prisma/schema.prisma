@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  student
+  admin
+}
+
+enum AssignmentSource {
+  lesson
+  manual
+}
+
+model User {
+  id               String   @id @default(cuid())
+  name             String
+  email            String   @unique
+  passwordHash     String
+  role             Role     @default(student)
+  apiKeyEncrypted  String?
+  notifyEnabled    Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  subjects    Subject[]
+  lessons     Lesson[]
+  assignments Assignment[]
+
+  @@map("users")
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#2F8F5B")
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("subjects")
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  userId      String
+  subjectId   String?
+  title       String
+  durationSec Int      @default(0)
+  transcript  String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  summary     Summary?
+  tasks       Task[]
+  assignments Assignment[]
+
+  @@index([userId])
+  @@index([subjectId])
+  @@map("lessons")
+}
+
+model Summary {
+  id             String   @id @default(cuid())
+  lessonId       String   @unique
+  suggestedTitle String
+  topics         String[] @default([])
+  keyPoints      String[] @default([])
+  studyTips      String[] @default([])
+  dates          String[] @default([])
+  createdAt      DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+}
+
+model Task {
+  id       String  @id @default(cuid())
+  lessonId String
+  text     String
+  done     Boolean @default(false)
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@map("tasks")
+}
+
+model Assignment {
+  id        String           @id @default(cuid())
+  userId    String
+  lessonId  String?
+  text      String
+  dueDate   String?
+  dueTime   String?
+  done      Boolean          @default(false)
+  source    AssignmentSource @default(manual)
+  createdAt DateTime         @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([lessonId])
+  @@map("assignments")
+}
