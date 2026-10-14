@@ -2,145 +2,88 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-declare global {
-  interface Window {
-    webkitAudioContext?: typeof AudioContext;
-  }
-}
+export type AudioStatus = "idle" | "recording" | "paused" | "stopped" | "error";
 
-export type RecorderStatus = "idle" | "starting" | "recording" | "paused" | "stopped" | "error";
-
-export interface UseAudioRecorderResult {
-  status: RecorderStatus;
-  error: string | null;
-  durationSec: number;
-  audioBlob: Blob | null;
-  analyser: AnalyserNode | null;
-  start: () => Promise<void>;
-  pause: () => void;
-  resume: () => void;
-  stop: () => void;
-  reset: () => void;
-}
-
-/** Captures microphone audio locally (MediaRecorder) and exposes an AnalyserNode for a waveform. */
-export function useAudioRecorder(): UseAudioRecorderResult {
-  const [status, setStatus] = useState<RecorderStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
+export function useAudioRecorder() {
+  const [status, setStatus] = useState<AudioStatus>("idle");
   const [durationSec, setDurationSec] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const cleanup = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = null;
+  const clearTimer = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const cleanupStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    audioCtxRef.current?.close().catch(() => {});
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+      audioCtxRef.current.close().catch(() => {});
+    }
     audioCtxRef.current = null;
     setAnalyser(null);
   }, []);
 
   const start = useCallback(async () => {
     setError(null);
-    setStatus("starting");
     setDurationSec(0);
-    setAudioBlob(null);
-    chunksRef.current = [];
-
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setError("This browser doesn't support microphone recording.");
-      setStatus("error");
-      return;
-    }
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-
-      stream.getAudioTracks().forEach((track) => {
-        track.addEventListener("ended", () => {
-          setError("Microphone disconnected. Recording stopped.");
-          setStatus((prev) => (prev === "recording" || prev === "paused" ? "error" : prev));
-        });
-      });
-
-      const AudioCtx = window.AudioContext ?? window.webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
-        const source = ctx.createMediaStreamSource(stream);
-        const analyserNode = ctx.createAnalyser();
-        analyserNode.fftSize = 256;
-        source.connect(analyserNode);
-        audioCtxRef.current = ctx;
-        setAnalyser(analyserNode);
-      }
-
-      const mimeType = ["audio/webm", "audio/mp4", "audio/ogg"].find(
-        (t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)
-      );
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        setAudioBlob(new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }));
-      };
-      recorderRef.current = recorder;
-      recorder.start(1000);
-
-      timerRef.current = setInterval(() => setDurationSec((d) => d + 1), 1000);
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const node = ctx.createAnalyser();
+      node.fftSize = 256;
+      source.connect(node);
+      setAnalyser(node);
       setStatus("recording");
-    } catch (err) {
-      const message =
-        err instanceof DOMException && err.name === "NotAllowedError"
-          ? "Microphone access was denied. Allow it in your browser settings and try again."
-          : "Couldn't access the microphone.";
-      setError(message);
+      clearTimer();
+      intervalRef.current = setInterval(() => setDurationSec((d) => d + 1), 1000);
+    } catch {
+      setError("Couldn't access your microphone. Check your browser permissions and try again.");
       setStatus("error");
-      cleanup();
     }
-  }, [cleanup]);
+  }, [clearTimer]);
 
   const pause = useCallback(() => {
-    if (recorderRef.current?.state !== "recording") return;
-    recorderRef.current.pause();
-    if (timerRef.current) clearInterval(timerRef.current);
+    clearTimer();
     setStatus("paused");
-  }, []);
+  }, [clearTimer]);
 
   const resume = useCallback(() => {
-    if (recorderRef.current?.state !== "paused") return;
-    recorderRef.current.resume();
-    timerRef.current = setInterval(() => setDurationSec((d) => d + 1), 1000);
     setStatus("recording");
-  }, []);
+    clearTimer();
+    intervalRef.current = setInterval(() => setDurationSec((d) => d + 1), 1000);
+  }, [clearTimer]);
 
   const stop = useCallback(() => {
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      recorderRef.current.stop();
-    }
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = null;
-    setStatus((prev) => (prev === "error" ? prev : "stopped"));
-    cleanup();
-  }, [cleanup]);
+    clearTimer();
+    cleanupStream();
+    setStatus("stopped");
+  }, [clearTimer, cleanupStream]);
 
   const reset = useCallback(() => {
-    setStatus("idle");
-    setError(null);
+    clearTimer();
+    cleanupStream();
     setDurationSec(0);
-    setAudioBlob(null);
-    chunksRef.current = [];
-  }, []);
+    setError(null);
+    setStatus("idle");
+  }, [clearTimer, cleanupStream]);
 
-  useEffect(() => cleanup, [cleanup]);
+  useEffect(() => {
+    return () => {
+      clearTimer();
+      cleanupStream();
+    };
+  }, [clearTimer, cleanupStream]);
 
-  return { status, error, durationSec, audioBlob, analyser, start, pause, resume, stop, reset };
+  return { status, durationSec, analyser, error, start, pause, resume, stop, reset };
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+const BAR_COUNT = 44;
+
 export function Waveform({
   analyser,
   active,
@@ -30,42 +32,51 @@ export function Waveform({
     window.addEventListener("resize", resize);
 
     const style = getComputedStyle(document.documentElement);
-    const primary = style.getPropertyValue("--primary").trim() || "#2F8F5B";
-    const idleColor = style.getPropertyValue("--muted-foreground").trim() || "#6b7a70";
+    const barColor = style.getPropertyValue("--foreground").trim() || "#111111";
+    const idleColor = style.getPropertyValue("--border").trim() || "#111111";
     const data = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
+
+    function bar(x: number, h: number, barWidth: number, height: number) {
+      const y = height - h;
+      const r = Math.min(barWidth / 2, 2 * dpr);
+      ctx!.beginPath();
+      if (typeof ctx!.roundRect === "function") {
+        ctx!.roundRect(x, y, barWidth, h, r);
+      } else {
+        ctx!.rect(x, y, barWidth, h);
+      }
+      ctx!.fill();
+    }
 
     const draw = () => {
       const { width, height } = canvas;
       ctx!.clearRect(0, 0, width, height);
+      const barWidth = Math.max(2 * dpr, (width / BAR_COUNT) * 0.5);
+      const gap = BAR_COUNT > 1 ? (width - barWidth * BAR_COUNT) / (BAR_COUNT - 1) : 0;
 
       if (!active || !analyser || !data) {
-        // idle flat line
-        ctx!.strokeStyle = idleColor;
-        ctx!.globalAlpha = 0.35;
-        ctx!.lineWidth = 2 * dpr;
-        ctx!.beginPath();
-        ctx!.moveTo(0, height / 2);
-        ctx!.lineTo(width, height / 2);
-        ctx!.stroke();
+        ctx!.fillStyle = idleColor;
+        ctx!.globalAlpha = 0.3;
+        for (let i = 0; i < BAR_COUNT; i++) {
+          bar(i * (barWidth + gap), 4 * dpr, barWidth, height);
+        }
         frameRef.current = requestAnimationFrame(draw);
         return;
       }
 
       analyser.getByteTimeDomainData(data);
       ctx!.globalAlpha = 1;
-      ctx!.lineWidth = 2.5 * dpr;
-      ctx!.strokeStyle = primary;
-      ctx!.beginPath();
-      const sliceWidth = width / data.length;
-      let x = 0;
-      for (let i = 0; i < data.length; i++) {
-        const v = data[i] / 128 - 1;
-        const y = height / 2 + v * (height / 2) * 0.85;
-        if (i === 0) ctx!.moveTo(x, y);
-        else ctx!.lineTo(x, y);
-        x += sliceWidth;
+      ctx!.fillStyle = barColor;
+      const samplesPerBar = Math.max(1, Math.floor(data.length / BAR_COUNT));
+      for (let i = 0; i < BAR_COUNT; i++) {
+        let peak = 0;
+        for (let j = 0; j < samplesPerBar; j++) {
+          const v = Math.abs(data[i * samplesPerBar + j] / 128 - 1);
+          if (v > peak) peak = v;
+        }
+        const h = Math.max(4 * dpr, peak * height * 0.95);
+        bar(i * (barWidth + gap), h, barWidth, height);
       }
-      ctx!.stroke();
       frameRef.current = requestAnimationFrame(draw);
     };
 

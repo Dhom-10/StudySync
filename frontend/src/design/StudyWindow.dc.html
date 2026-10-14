@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap"></link></helmet>
+<div style="width:935px;background:#fffdf7;border:3px solid #111;border-radius:22px;box-shadow:0 10px 0 #ffe03a;overflow:hidden;font-family:'DM Sans',sans-serif;color:#111">
+<div style="display:flex;align-items:center;gap:22px;padding:14px 20px;border-bottom:2px solid #111">
+<div style="display:flex;gap:7px"><i style="width:18px;height:18px;border:2px solid #111;border-radius:50%"></i><i style="width:18px;height:18px;border:2px solid #111;border-radius:50%"></i><i style="width:18px;height:18px;border:2px solid #111;border-radius:50%"></i></div>
+<span style="font:400 15px 'JetBrains Mono',monospace">StudySync · Biology 201, Lecture 9</span></div>
+<div style="display:grid;grid-template-columns:1fr 1fr">
+<div style="padding:24px 26px;border-right:2px solid #111;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;justify-content:space-between;align-items:center"><div style="display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px"><i style="width:14px;height:14px;border-radius:50%;background:#e8392b"></i>Recording</div><b style="font:500 17px 'JetBrains Mono',monospace">24:07</b></div>
+<div style="display:flex;align-items:center;gap:4px;height:64px">
+<sc-for list="{{ bars }}" as="b" hint-placeholder-count="30"><i style="width:4px;border-radius:2px;flex:none;height:{{ b.h }}px;background:{{ b.c }}"></i></sc-for></div>
+<div style="font:400 12px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#555">LIVE TRANSCRIPT</div>
+<div style="display:flex;flex-direction:column;gap:14px;font-size:16px;line-height:1.4">
+<div style="display:flex;gap:16px"><span style="font:400 13px 'JetBrains Mono',monospace;color:#555;padding-top:3px">23:41</span><span>So the light reactions happen in the thylakoid membrane. That is where water gets split.</span></div>
+<div style="display:flex;gap:16px"><span style="font:400 13px 'JetBrains Mono',monospace;color:#555;padding-top:3px">23:52</span><span>The Calvin cycle then uses that ATP and NADPH to build sugar.</span></div>
+<div style="display:flex;gap:16px"><span style="font:400 13px 'JetBrains Mono',monospace;color:#555;padding-top:3px">24:03</span><span>Quick reminder: <mark style="background:#ffe03a;padding:1px 6px;border-radius:3px">the lab report is due next Friday</mark>, and chapter 8 is on the quiz.</span></div></div>
+<div style="display:flex;gap:12px;margin-top:4px">
+<button style="display:flex;align-items:center;gap:10px;padding:12px 22px;border:2px solid #111;border-radius:12px;background:#fff;font:700 16px 'DM Sans';cursor:pointer"><i style="width:11px;height:11px;background:#111"></i>Stop</button>
+<button style="padding:12px 22px;border:2px solid #111;border-radius:12px;background:#111;color:#fff;font:700 16px 'DM Sans';cursor:pointer">Summarize</button></div></div>
+<div style="padding:24px 26px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:26px;letter-spacing:-.01em">Summary</b><span style="font-size:13px;font-weight:500">✓ Saved to your account</span></div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font:400 12px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#555">TOPICS</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px"><span style="padding:5px 13px;border:2px solid #111;border-radius:99px;font-weight:500;font-size:14px">Photosynthesis</span><span style="padding:5px 13px;border:2px solid #111;border-radius:99px;font-weight:500;font-size:14px">Light reactions</span><span style="padding:5px 13px;border:2px solid #111;border-radius:99px;font-weight:500;font-size:14px">Calvin cycle</span></div></div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font:400 12px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#555">KEY POINTS</div>
+<div style="display:flex;gap:10px;font-size:15px"><i style="width:7px;height:7px;background:#111;margin-top:8px;flex:none"></i>Light reactions split water and make ATP and NADPH.</div>
+<div style="display:flex;gap:10px;font-size:15px"><i style="width:7px;height:7px;background:#111;margin-top:8px;flex:none"></i>The Calvin cycle uses both to build sugar.</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font:400 12px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#555">ASSIGNMENTS</div><b style="font-size:15px">Lab report</b><span style="align-self:flex-start;background:#ffe03a;border:2px solid #111;border-radius:6px;padding:3px 10px;font:500 13px 'JetBrains Mono',monospace">Due Fri, Oct 16</span></div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font:400 12px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#555">TASKS</div><div style="display:flex;gap:10px;font-size:15px"><i style="width:15px;height:15px;border:2px solid #111;border-radius:3px;flex:none;margin-top:3px"></i>Review chapter 8 before the quiz</div></div></div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font:400 12px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#555">STUDY TIP</div><span style="font-size:15px;line-height:1.4">Sketch the two stages side by side and label what goes in and what comes out.</span></div>
+</div></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:935,&quot;height&quot;:470}}">
+class Component extends DCLogic {
+  renderVals() {
+    const bars = [];
+    for (let i = 0; i < 52; i++) {
+      const live = i < 38;
+      const h = live ? 10 + Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6)) * 50 : 4;
+      bars.push({ h: Math.round(h), c: i === 37 ? '#e8392b' : live ? '#111' : '#ccc' });
+    }
+    return { bars };
+  }
+}
+</script>
+</body>
+</html>
