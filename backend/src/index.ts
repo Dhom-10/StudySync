@@ -1,8 +1,8 @@
-import { env } from "./lib/env";
-import { createApp } from "./app";
+import "dotenv/config";
+import app from "./app";
 
-const app = createApp();
+const port = process.env.PORT ?? 4000;
 
-app.listen(env.PORT, () => {
-  console.log(`StudySync API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
+app.listen(port, () => {
+  console.log(`StudySync backend listening on http://localhost:${port}`);
 });

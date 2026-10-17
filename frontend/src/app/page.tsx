@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { useCurrentUser } from "@/hooks/use-auth";
 
 function scrollToDemo(e: React.MouseEvent) {
   e.preventDefault();
@@ -17,21 +13,6 @@ function scrollToDemo(e: React.MouseEvent) {
 }
 
 export default function RootPage() {
-  const router = useRouter();
-  const { data: user, isLoading } = useCurrentUser();
-
-  useEffect(() => {
-    if (!isLoading && user) router.replace("/record");
-  }, [isLoading, user, router]);
-
-  if (isLoading || user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   return <LandingPage />;
 }
 
