@@ -1,35 +1,9 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { GoogleIcon } from "@/components/google-icon";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useLogin } from "@/hooks/use-auth";
-import { ApiError } from "@/lib/api";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const login = useLogin();
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    login.mutate(
-      { email, password },
-      {
-        onError: (err) => {
-          setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
-        },
-      }
-    );
-  }
-
   return (
     <div className="flex min-h-screen justify-center bg-background p-4 sm:p-8">
       <div className="flex w-full max-w-[1280px] flex-col overflow-hidden border border-foreground/10 bg-card">
@@ -48,58 +22,13 @@ export default function LoginPage() {
               <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">Log in to StudySync</h1>
               <p className="mt-2 text-muted-foreground">Pick up where you left off.</p>
 
-              <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@school.edu"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                  />
-                </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" className="h-auto w-full py-3 text-base" disabled={login.isPending}>
-                  {login.isPending && <Loader2 className="size-4 animate-spin" />}
-                  Log in
-                </Button>
-              </form>
-
-              <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="h-px flex-1 bg-border/10" />
-                or
-                <span className="h-px flex-1 bg-border/10" />
-              </div>
-
-              <Button variant="outline" className="h-auto w-full gap-2.5 py-3 text-base">
-                <GoogleIcon className="size-4.5" />
-                Continue with Google
+              <Button
+                render={<Link href="/dashboard" />}
+                nativeButton={false}
+                className="mt-8 h-auto w-full py-3 text-base"
+              >
+                Log in
               </Button>
-
-              <p className="mt-6 text-center text-sm text-muted-foreground">
-                Don&apos;t have an account?{" "}
-                <Link
-                  href="/signup"
-                  className="font-medium text-foreground underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight"
-                >
-                  Sign up
-                </Link>
-              </p>
             </div>
           </div>
 
