@@ -55,4 +55,6 @@ export const lessonsApi = {
   },
   finish: (id: number) => post<{ ok: true }>(`/lessons/${id}/finish`),
   get: (id: number) => request<Lesson>(`/lessons/${id}`),
+  list: () => request<Lesson[]>("/lessons"),
+  remove: (id: number) => request<void>(`/lessons/${id}`, { method: "DELETE" }),
 };

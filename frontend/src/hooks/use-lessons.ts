@@ -4,7 +4,34 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lessonsApi } from "@/lib/api";
 
 export function useCreateLesson() {
-  return useMutation({ mutationFn: lessonsApi.create });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: lessonsApi.create,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: LIST_KEY }),
+  });
+}
+
+const LIST_KEY = ["lessons", "list"] as const;
+
+// Sidebar list of past sessions; keeps refreshing while any session is still being worked on.
+export function useLessons() {
+  return useQuery({
+    queryKey: LIST_KEY,
+    queryFn: lessonsApi.list,
+    refetchInterval: (query) =>
+      query.state.data?.some((l) => l.status === "recording" || l.status === "processing") ? 3000 : false,
+  });
+}
+
+export function useDeleteLesson() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: lessonsApi.remove,
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: ["lessons", id] });
+      return queryClient.invalidateQueries({ queryKey: LIST_KEY });
+    },
+  });
 }
 
 export function useAddChunk() {

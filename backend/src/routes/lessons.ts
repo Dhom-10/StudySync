@@ -15,17 +15,27 @@ function findSegments(id: number) {
     .all(id) as unknown as SegmentRow[];
 }
 
+const DEFAULT_TITLE = "Untitled lecture";
+
+// Names a session after what was talked about, so the sidebar list is readable.
+function titleFromSummary(topics: string[] | undefined) {
+  const title = (topics ?? []).slice(0, 2).join(" · ");
+  return title ? title.slice(0, 60) : DEFAULT_TITLE;
+}
+
 function serialize(row: LessonRow, withSegments = true) {
+  const summary = row.summary ? JSON.parse(row.summary) : null;
   return {
     id: row.id,
-    title: row.title,
+    title: row.title === DEFAULT_TITLE ? titleFromSummary(summary?.topics) : row.title,
     status: row.status,
     stage: row.stage,
     transcript: row.transcript,
     segments: withSegments ? findSegments(row.id).map((s) => ({ start: s.start_sec, text: s.text })) : [],
-    summary: row.summary ? JSON.parse(row.summary) : null,
+    summary,
     error: row.error,
-    createdAt: row.created_at,
+    // SQLite stores UTC without a zone marker; make it explicit for the browser.
+    createdAt: `${row.created_at.replace(" ", "T")}Z`,
   };
 }
 
@@ -70,10 +80,9 @@ async function summarizeLesson(id: number) {
     db.prepare("UPDATE lessons SET transcript = ?, stage = 'summarizing' WHERE id = ?").run(transcript, id);
     const summary = await summarize(transcript);
 
-    db.prepare("UPDATE lessons SET summary = ?, status = 'done', stage = NULL, error = NULL WHERE id = ?").run(
-      JSON.stringify(summary),
-      id
-    );
+    db.prepare(
+      "UPDATE lessons SET summary = ?, title = ?, status = 'done', stage = NULL, error = NULL WHERE id = ?"
+    ).run(JSON.stringify(summary), titleFromSummary(summary.topics), id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`Lesson ${id} failed:`, message);
@@ -129,6 +138,20 @@ lessons.get("/:id", (c) => {
   const row = findLesson(Number(c.req.param("id")));
   if (!row) return c.json({ error: "Lesson not found" }, 404);
   return c.json(serialize(row));
+});
+
+lessons.delete("/:id", (c) => {
+  const id = Number(c.req.param("id"));
+  const lesson = findLesson(id);
+  if (!lesson) return c.json({ error: "Lesson not found" }, 404);
+  // Chunks / summarizing may still be queued for it; wait until it settles.
+  if (lesson.status === "recording" || lesson.status === "processing") {
+    return c.json({ error: "Wait for this session to finish before deleting it" }, 409);
+  }
+
+  db.prepare("DELETE FROM segments WHERE lesson_id = ?").run(id);
+  db.prepare("DELETE FROM lessons WHERE id = ?").run(id);
+  return c.body(null, 204);
 });
 
 export default lessons;
