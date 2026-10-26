@@ -5,10 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Check, PanelLeft, Plus, Trash2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
+import { AnimatedSummary } from "@/components/summary-stream";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Kbd } from "@/components/ui/kbd";
 import {
   Popover,
@@ -18,7 +17,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Spinner } from "@/components/ui/spinner";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
 import {
   Tooltip,
   TooltipContent,
@@ -40,20 +39,8 @@ import { cn } from "@/lib/utils";
 // Two Control taps closer together than this count as a double tap.
 const HOTKEY_WINDOW_MS = 400;
 
-const STAGE_LABEL = {
-  transcribing: "Finishing the transcript…",
-  summarizing: "Writing the summary…",
-} as const;
-
 function formatTime(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-function formatDue(iso: string | null) {
-  if (!iso) return "No due date";
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `Due ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`;
 }
 
 // createdAt is an ISO timestamp (UTC); show it in the viewer's local time.
@@ -74,21 +61,6 @@ function errorMessage(err: unknown) {
     : "Couldn't reach the backend. Is it running on port 4000?";
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <h2 className="label-mono mb-2">{title}</h2>
-      {children}
-    </div>
-  );
-}
-
 export default function DemoPage() {
   const router = useRouter();
   const { status, logout } = useLocalAuth();
@@ -99,7 +71,8 @@ export default function DemoPage() {
 
   const [lessonId, setLessonId] = useState<number | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [doneTasks, setDoneTasks] = useState<Set<number>>(new Set());
+  // The session whose summary was just written here: it streams in; opening an old session shows it at once.
+  const [streamingId, setStreamingId] = useState<number | null>(null);
   // Resolves to the new lesson's id (or null if it couldn't be created); chunks wait on it.
   const lessonPromiseRef = useRef<Promise<number | null>>(
     Promise.resolve(null),
@@ -189,7 +162,6 @@ export default function DemoPage() {
   async function handleStart() {
     setLessonId(null);
     setRequestError(null);
-    setDoneTasks(new Set());
     finishLesson.reset();
     if (!(await recorder.start())) return;
 
@@ -208,6 +180,7 @@ export default function DemoPage() {
     await recorder.stop();
     const id = await lessonPromiseRef.current;
     if (id === null) return;
+    setStreamingId(id);
     finishLesson.mutate(id, {
       onError: (err) => setRequestError(errorMessage(err)),
     });
@@ -217,7 +190,7 @@ export default function DemoPage() {
   function openSession(id: number | null) {
     setLessonId(id);
     setRequestError(null);
-    setDoneTasks(new Set());
+    setStreamingId(null);
     finishLesson.reset();
   }
 
@@ -229,22 +202,12 @@ export default function DemoPage() {
     });
   }
 
-  function toggleTask(i: number) {
-    setDoneTasks((prev) => {
-      const next = new Set(prev);
-      if (!next.delete(i)) next.add(i);
-      return next;
-    });
-  }
-
-  const hasAssignments = !!summary?.assignments.length;
-  const hasTasks = !!summary?.tasks.length;
   const summaryEmpty =
     !!summary &&
     !summary.topics.length &&
     !summary.keyPoints.length &&
-    !hasAssignments &&
-    !hasTasks &&
+    !summary.assignments.length &&
+    !summary.tasks.length &&
     !summary.studyTip.trim();
 
   return (
@@ -467,7 +430,7 @@ export default function DemoPage() {
               )}
 
               <div className="mt-6 flex gap-3">
-                {recorder.recording ? (
+                {recorder.recording && (
                   <Button
                     variant="outline"
                     className="h-auto gap-2.5 px-5 py-3"
@@ -476,7 +439,19 @@ export default function DemoPage() {
                     <span className="size-2.5 rounded-[2px] bg-current" />
                     Stop
                   </Button>
-                ) : (
+                )}
+                {recorder.recording && (
+                  <ShimmerButton
+                    shimmerColor="var(--highlight)"
+                    background="var(--foreground)"
+                    borderRadius="6px"
+                    className="pointer-events-none px-5 py-3 text-sm font-semibold"
+                    tabIndex={-1}
+                  >
+                    Transcribing…
+                  </ShimmerButton>
+                )}
+                {!recorder.recording && (
                   <Button
                     className="h-auto px-5 py-3"
                     onClick={handleStart}
@@ -513,10 +488,17 @@ export default function DemoPage() {
               </div>
 
               {processing && (
-                <p className="flex items-center gap-2 text-muted-foreground">
-                  <Spinner />
-                  {STAGE_LABEL[lesson?.stage ?? "transcribing"]}
-                </p>
+                <ShimmerButton
+                  shimmerColor="var(--highlight)"
+                  background="var(--foreground)"
+                  borderRadius="6px"
+                  className="pointer-events-none px-5 py-3 text-sm font-semibold"
+                  tabIndex={-1}
+                >
+                  {lesson?.stage === "summarizing"
+                    ? "Summarizing…"
+                    : "Thinking…"}
+                </ShimmerButton>
               )}
 
               {lesson?.status === "error" && (
@@ -542,102 +524,13 @@ export default function DemoPage() {
                 </p>
               )}
 
-              {summary && !summaryEmpty && (
-                <div className="flex flex-col gap-6">
-                  {summary.topics.length > 0 && (
-                    <Section title="Topics">
-                      <div className="flex flex-wrap gap-2">
-                        {summary.topics.map((t) => (
-                          <Badge
-                            key={t}
-                            variant="outline"
-                            className="h-auto px-3.5 py-0.5 text-base"
-                          >
-                            {t}
-                          </Badge>
-                        ))}
-                      </div>
-                    </Section>
-                  )}
-
-                  {summary.keyPoints.length > 0 && (
-                    <Section title="Key points">
-                      <ul className="grid gap-1.5">
-                        {summary.keyPoints.map((p) => (
-                          <li
-                            key={p}
-                            className="relative pl-5 text-lg leading-snug before:absolute before:top-[0.55em] before:left-px before:size-1.5 before:bg-foreground"
-                          >
-                            {p}
-                          </li>
-                        ))}
-                      </ul>
-                    </Section>
-                  )}
-
-                  {(hasAssignments || hasTasks) && (
-                    <div
-                      className={cn(
-                        "grid gap-8",
-                        hasAssignments && hasTasks && "sm:grid-cols-2",
-                      )}
-                    >
-                      {hasAssignments && (
-                        <Section title="Assignments">
-                          <div className="grid gap-3">
-                            {summary.assignments.map((a) => (
-                              <div key={a.title}>
-                                <strong className="mb-1.5 block">
-                                  {a.title}
-                                </strong>
-                                <Badge
-                                  variant="highlight"
-                                  className="label-mono h-auto rounded-[6px] px-2.5 py-0.5 font-bold normal-case tracking-normal"
-                                >
-                                  {formatDue(a.dueDate)}
-                                </Badge>
-                              </div>
-                            ))}
-                          </div>
-                        </Section>
-                      )}
-                      {hasTasks && (
-                        <Section title="Tasks">
-                          <div className="grid gap-2">
-                            {summary.tasks.map((task, i) => (
-                              <label
-                                key={task}
-                                className="flex cursor-pointer items-start gap-2.5 text-base leading-snug"
-                              >
-                                <Checkbox
-                                  checked={doneTasks.has(i)}
-                                  onCheckedChange={() => toggleTask(i)}
-                                  className="mt-0.5"
-                                />
-                                <span
-                                  className={cn(
-                                    doneTasks.has(i) &&
-                                      "text-muted-foreground line-through",
-                                  )}
-                                >
-                                  {task}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </Section>
-                      )}
-                    </div>
-                  )}
-
-                  {summary.studyTip.trim() && (
-                    <Section title="Study tip">
-                      <p className="text-base leading-snug">
-                        {summary.studyTip}
-                      </p>
-                    </Section>
-                  )}
-                </div>
+              {summary && !summaryEmpty && lesson && (
+                <AnimatedSummary
+                  key={lesson.id}
+                  summary={summary}
+                  animate={lesson.id === streamingId}
+                  size="lg"
+                />
               )}
             </section>
           </div>

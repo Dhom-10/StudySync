@@ -1,10 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { BrandMark } from "@/components/brand-mark";
+import { FitText } from "@/components/landing/fit-text";
+import { LiveDemoWindow } from "@/components/landing/live-demo";
 import { SiteHeader } from "@/components/site-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocalAuth } from "@/hooks/use-local-auth";
+import { cn } from "@/lib/utils";
+
+// Sections fill the screen (dvh = real visible height, even with mobile browser bars).
+// The hero starts below the page margin and the frame's 1px border, so it is shorter by exactly that much:
+// its bottom edge then lands on the bottom of the screen and nothing from the next section peeks in.
+const HERO_SCREEN = "min-h-[calc(100dvh-0.75rem-1px)] sm:min-h-[calc(100dvh-1rem-1px)]";
+// The last section keeps the page margin below it as well.
+const SCREEN = "min-h-[calc(100dvh-1.5rem)] sm:min-h-[calc(100dvh-2rem)]";
 
 function scrollToDemo(e: React.MouseEvent) {
   e.preventDefault();
@@ -20,16 +30,18 @@ export default function RootPage() {
 
 function LandingPage() {
   return (
-    <div className="flex min-h-screen bg-background p-3 sm:p-4">
+    <div className="flex min-h-dvh bg-background p-3 sm:p-4">
       <div className="w-full overflow-hidden rounded-[22px] border border-foreground/10 bg-card">
-        <div className="flex min-h-[calc(100vh-1.5rem)] flex-col sm:min-h-[calc(100vh-2rem)]">
+        <section className={cn(HERO_SCREEN, "flex flex-col")}>
           <Nav />
           <Hero />
-        </div>
+        </section>
         <WindowBand />
-        <FeatureGrid />
-        <ClosingCta />
-        <Footer />
+        <section className={cn(SCREEN, "flex flex-col border-t border-foreground/10")}>
+          <FeatureGrid />
+          <ClosingCta />
+          <Footer />
+        </section>
       </div>
     </div>
   );
@@ -104,136 +116,11 @@ function Hero() {
 
 function WindowBand() {
   return (
-    <div className="flex justify-center border-t border-b border-foreground/10 bg-highlight px-6 py-16 sm:px-14 sm:py-20">
-      <div className="w-full max-w-[935px]">
-        <StudyWindowPreview />
+    <section className="flex min-h-dvh items-center justify-center bg-highlight px-4 sm:px-10">
+      <div className="w-full max-w-[1240px]">
+        <LiveDemoWindow />
       </div>
-    </div>
-  );
-}
-
-const TRANSCRIPT_LINES = [
-  { time: "23:41", text: "So the light reactions happen in the thylakoid membrane. That is where water gets split." },
-  { time: "23:52", text: "The Calvin cycle then uses that ATP and NADPH to build sugar." },
-];
-
-const BARS = Array.from({ length: 44 }, (_, i) => {
-  const live = i < 32;
-  const h = live ? 10 + Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6)) * 44 : 4;
-  return { h: Math.round(h), live };
-});
-
-function StudyWindowPreview() {
-  return (
-    <div
-      id="how-it-works"
-      className="overflow-hidden rounded-[22px] border border-foreground/10 bg-card shadow-[0_10px_0_var(--highlight)]"
-    >
-      <div className="flex items-center gap-5 border-b border-foreground/10 px-5 py-3.5">
-        <div className="flex gap-[7px]">
-          <span className="size-[18px] rounded-full border-2 border-foreground" />
-          <span className="size-[18px] rounded-full border-2 border-foreground" />
-          <span className="size-[18px] rounded-full border-2 border-foreground" />
-        </div>
-        <span className="label-mono normal-case tracking-normal text-foreground">
-          StudySync · Biology 201, Lecture 9
-        </span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2">
-        <div className="flex flex-col gap-[18px] border-b border-foreground/10 p-6 sm:border-r sm:border-b-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 text-lg font-bold">
-              <span className="size-3.5 rounded-full bg-destructive" />
-              Recording
-            </div>
-            <b className="font-mono text-[17px] font-medium">24:07</b>
-          </div>
-          <div className="flex h-16 items-end gap-1">
-            {BARS.map((bar, i) => (
-              <span
-                key={i}
-                className={bar.live ? "w-1 rounded-sm bg-foreground" : "w-1 rounded-sm bg-border/30"}
-                style={{ height: bar.h }}
-              />
-            ))}
-          </div>
-          <div className="label-mono">Live transcript</div>
-          <div className="flex flex-col gap-3.5 text-[15px] leading-snug sm:text-base">
-            {TRANSCRIPT_LINES.map((line) => (
-              <div key={line.time} className="flex gap-4">
-                <span className="pt-0.5 font-mono text-[13px] text-muted-foreground">{line.time}</span>
-                <span>{line.text}</span>
-              </div>
-            ))}
-            <div className="flex gap-4">
-              <span className="pt-0.5 font-mono text-[13px] text-muted-foreground">24:03</span>
-              <span>
-                Quick reminder:{" "}
-                <mark className="rounded-[3px] bg-highlight px-1.5 text-foreground">
-                  the lab report is due next Friday
-                </mark>
-                , and chapter 8 is on the quiz.
-              </span>
-            </div>
-          </div>
-          <div className="mt-1 flex gap-3">
-            <Button variant="outline" className="h-auto gap-2.5 px-5 py-3 text-base">
-              <span className="size-2.5 bg-foreground" /> Stop
-            </Button>
-            <Button className="h-auto px-5 py-3 text-base">Summarize</Button>
-          </div>
-        </div>
-        <div className="flex flex-col gap-4 p-6">
-          <div className="flex items-baseline justify-between">
-            <b className="text-[26px] tracking-[-0.01em]">Summary</b>
-            <span className="text-[13px] font-medium">✓ Saved to your account</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="label-mono">Topics</div>
-            <div className="flex flex-wrap gap-2">
-              {["Photosynthesis", "Light reactions", "Calvin cycle"].map((t) => (
-                <Badge key={t} variant="outline" className="h-auto px-3.5 py-1 text-sm">
-                  {t}
-                </Badge>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="label-mono">Key points</div>
-            <div className="flex gap-2.5 text-[15px]">
-              <span className="mt-2 size-[7px] shrink-0 bg-foreground" />
-              Light reactions split water and make ATP and NADPH.
-            </div>
-            <div className="flex gap-2.5 text-[15px]">
-              <span className="mt-2 size-[7px] shrink-0 bg-foreground" />
-              The Calvin cycle uses both to build sugar.
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-5">
-            <div className="flex flex-col gap-2">
-              <div className="label-mono">Assignments</div>
-              <b className="text-[15px]">Lab report</b>
-              <Badge variant="highlight" className="label-mono h-auto rounded-[6px] px-2.5 py-1 tracking-[0.04em]">
-                Due Fri, Oct 16
-              </Badge>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="label-mono">Tasks</div>
-              <div className="flex gap-2.5 text-[15px]">
-                <span className="mt-0.5 size-[15px] shrink-0 rounded-[3px] border-2 border-foreground" />
-                Review chapter 8 before the quiz
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="label-mono">Study tip</div>
-            <span className="text-[15px] leading-snug">
-              Sketch the two stages side by side and label what goes in and what comes out.
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 }
 
@@ -245,20 +132,21 @@ const FEATURES = [
 
 function FeatureGrid() {
   return (
-    <div className="grid grid-cols-1 border-b border-foreground/10 sm:grid-cols-3">
+    <div className="grid flex-1 grid-cols-1 border-b border-foreground/10 sm:grid-cols-3">
       {FEATURES.map((f, i) => (
         <div
           key={f.n}
-          className={
-            "flex flex-col gap-2.5 border-foreground/10 px-6 py-10 sm:px-8" +
-            (i < FEATURES.length - 1 ? " border-b sm:border-r sm:border-b-0" : "")
-          }
+          className={cn(
+            "flex flex-col justify-center gap-3 border-foreground/10 px-6 py-12 sm:px-10",
+            i < FEATURES.length - 1 && "border-b sm:border-r sm:border-b-0"
+          )}
         >
-          <span className="label-mono">
-            {f.n} · {f.label}
+          <span className="font-display text-7xl leading-none font-extrabold tracking-[-0.04em] text-foreground/15 [font-stretch:75%] sm:text-8xl">
+            {f.n}
           </span>
-          <b className="font-display text-2xl font-extrabold tracking-[-0.02em] sm:text-[30px]">{f.title}</b>
-          <span className="text-[17px] leading-[1.45]">{f.body}</span>
+          <span className="label-mono">{f.label}</span>
+          <b className="font-display text-3xl font-extrabold tracking-[-0.02em] sm:text-4xl">{f.title}</b>
+          <span className="max-w-sm text-lg leading-[1.45] sm:text-xl">{f.body}</span>
         </div>
       ))}
     </div>
@@ -267,7 +155,7 @@ function FeatureGrid() {
 
 function ClosingCta() {
   return (
-    <div className="flex flex-col items-start justify-between gap-6 px-6 py-14 sm:flex-row sm:items-center sm:px-14 sm:py-[72px]">
+    <div className="flex flex-col items-start justify-between gap-6 px-6 py-14 sm:flex-row sm:items-center sm:px-14 sm:py-16">
       <h2 className="font-display text-4xl leading-[1] font-extrabold tracking-[-0.02em] [font-stretch:75%] sm:text-[60px]">
         Stop taking notes.
         <br />
@@ -285,11 +173,68 @@ function ClosingCta() {
   );
 }
 
+function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="label-mono">{title}</span>
+      <ul className="flex flex-col gap-2 text-[15px]">{children}</ul>
+    </div>
+  );
+}
+
+const footerLink =
+  "underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight";
+
 function Footer() {
   return (
-    <div className="label-mono flex justify-between border-t border-foreground/10 px-6 py-5 normal-case tracking-normal sm:px-14">
-      <span>© StudySync</span>
-      <span>Privacy · Terms</span>
-    </div>
+    <footer className="overflow-hidden border-t border-foreground/10">
+      <div className="grid gap-10 px-6 py-12 sm:grid-cols-2 sm:px-14 lg:grid-cols-4">
+        <div className="flex flex-col gap-4">
+          <BrandMark />
+          <p className="max-w-xs text-[15px] leading-snug text-muted-foreground">
+            Record the lecture. Keep the understanding.
+          </p>
+        </div>
+        <FooterColumn title="Product">
+          <li>
+            <a href="#how-it-works" onClick={scrollToDemo} className={footerLink}>
+              How it works
+            </a>
+          </li>
+          <li>
+            <Link href="/login" className={footerLink}>
+              Log in
+            </Link>
+          </li>
+          <li>
+            <Link href="/login" className={footerLink}>
+              Start free
+            </Link>
+          </li>
+        </FooterColumn>
+        <FooterColumn title="Under the hood">
+          <li>Whisper for speech recognition</li>
+          <li>Ollama for the summaries</li>
+          <li>SQLite for your sessions</li>
+        </FooterColumn>
+        <FooterColumn title="Private by design">
+          <li>Runs on your own machine</li>
+          <li>Audio never leaves your laptop</li>
+          <li>No cloud accounts, no API keys</li>
+        </FooterColumn>
+      </div>
+
+      {/* Scaled to the exact width of the footer, so the left and right margins are equal. */}
+      <div aria-hidden="true" className="select-none px-6 sm:px-14">
+        <FitText className="font-display leading-[0.78] font-extrabold tracking-[-0.04em] text-foreground/[0.07] [font-stretch:75%]">
+          StudySync
+        </FitText>
+      </div>
+
+      <div className="label-mono flex flex-wrap justify-between gap-2 border-t border-foreground/10 px-6 py-5 normal-case tracking-normal sm:px-14">
+        <span>© StudySync · Made for students</span>
+        <span>Built with Whisper and Ollama</span>
+      </div>
+    </footer>
   );
 }
