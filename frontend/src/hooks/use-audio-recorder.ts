@@ -66,6 +66,7 @@ export function useAudioRecorder(onChunk: OnChunk) {
     }
 
     const audioCtx = new AudioContext();
+    void audioCtx.resume(); // starting from a bare modifier key may leave it suspended
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256;
     audioCtx.createMediaStreamSource(stream).connect(analyser);

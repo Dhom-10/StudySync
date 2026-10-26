@@ -19,9 +19,9 @@ export default function RootPage() {
 
 function LandingPage() {
   return (
-    <div className="flex min-h-screen justify-center bg-background p-4 sm:p-8">
-      <div className="w-full max-w-[1280px] overflow-hidden border border-foreground/10 bg-card">
-        <div className="flex min-h-[calc(100vh-1rem)] flex-col sm:min-h-[calc(100vh-2rem)]">
+    <div className="flex min-h-screen bg-background p-3 sm:p-4">
+      <div className="w-full overflow-hidden rounded-[22px] border border-foreground/10 bg-card">
+        <div className="flex min-h-[calc(100vh-1.5rem)] flex-col sm:min-h-[calc(100vh-2rem)]">
           <Nav />
           <Hero />
         </div>

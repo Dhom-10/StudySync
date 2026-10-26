@@ -19,6 +19,9 @@ import { useLocalAuth } from "@/hooks/use-local-auth";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+// Two Control taps closer together than this count as a double tap.
+const HOTKEY_WINDOW_MS = 400;
+
 const STAGE_LABEL = {
   transcribing: "Finishing the transcript…",
   summarizing: "Writing the summary…",
@@ -110,9 +113,11 @@ export default function DemoPage() {
   useEffect(() => {
     if (confirmId === null) return;
     const onClick = (e: MouseEvent) => {
-      if (!(e.target as Element).closest("[data-delete-confirm]")) setConfirmId(null);
+      if (!(e.target as Element).closest("[data-delete-confirm]"))
+        setConfirmId(null);
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setConfirmId(null);
+    const onKey = (e: KeyboardEvent) =>
+      e.key === "Escape" && setConfirmId(null);
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -120,6 +125,49 @@ export default function DemoPage() {
       document.removeEventListener("keydown", onKey);
     };
   }, [confirmId]);
+
+  // Hotkey: tapping Control twice quickly starts or stops recording. The handler is kept in a ref so the
+  // keydown listener (registered once) always calls the latest version.
+  const [hotkeyArmed, setHotkeyArmed] = useState(false);
+  const hotkeyRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    hotkeyRef.current = () => {
+      if (status !== "in") return;
+      if (recorder.recording) void handleStop();
+      else if (!finishLesson.isPending && lesson?.status !== "processing")
+        void handleStart();
+    };
+  });
+  useEffect(() => {
+    let lastTap = 0;
+    let disarm: ReturnType<typeof setTimeout> | undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Control") {
+        lastTap = 0; // Ctrl+C and friends don't count
+        clearTimeout(disarm);
+        setHotkeyArmed(false);
+        return;
+      }
+      if (e.repeat) return;
+      const now = Date.now();
+      if (now - lastTap < HOTKEY_WINDOW_MS) {
+        lastTap = 0;
+        clearTimeout(disarm);
+        setHotkeyArmed(false);
+        hotkeyRef.current();
+      } else {
+        lastTap = now;
+        setHotkeyArmed(true); // first tap registered: light up the first keycap until the window closes
+        clearTimeout(disarm);
+        disarm = setTimeout(() => setHotkeyArmed(false), HOTKEY_WINDOW_MS);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      clearTimeout(disarm);
+    };
+  }, []);
 
   useEffect(() => {
     if (status === "out") router.replace("/login");
@@ -197,8 +245,8 @@ export default function DemoPage() {
     !summary.studyTip.trim();
 
   return (
-    <div className="flex min-h-screen justify-center bg-background p-4 sm:p-8">
-      <div className="flex w-full max-w-[1280px] flex-col overflow-hidden border border-foreground/10 bg-card">
+    <div className="flex min-h-screen bg-background p-3 sm:p-4 lg:h-screen">
+      <div className="flex w-full flex-col overflow-hidden rounded-[22px] border border-foreground/10 bg-card">
         <SiteHeader>
           <div className="flex items-center gap-6">
             <Link
@@ -217,7 +265,7 @@ export default function DemoPage() {
           </div>
         </SiteHeader>
 
-        <div className="flex h-12 items-center gap-4 border-b border-foreground/10 px-6 sm:px-14">
+        <div className="flex h-12 shrink-0 items-center gap-4 border-b border-foreground/10 px-6 sm:px-14">
           <button
             type="button"
             onClick={() => setSidebarOpen((o) => !o)}
@@ -232,9 +280,9 @@ export default function DemoPage() {
           </span>
         </div>
 
-        <div className="flex flex-1 max-lg:flex-col">
+        <div className="flex flex-1 max-lg:flex-col lg:min-h-0">
           {sidebarOpen && (
-            <aside className="flex shrink-0 flex-col gap-4 border-foreground/10 bg-card p-4 lg:w-64 lg:border-r max-lg:border-b">
+            <aside className="flex shrink-0 flex-col gap-4 border-foreground/10 bg-card p-4 lg:w-64 lg:overflow-y-auto lg:border-r max-lg:border-b">
               <Button
                 variant="outline"
                 className="w-full gap-2"
@@ -288,7 +336,9 @@ export default function DemoPage() {
                         }
                         data-delete-confirm
                         aria-expanded={confirmId === s.id}
-                        onClick={() => setConfirmId(confirmId === s.id ? null : s.id)}
+                        onClick={() =>
+                          setConfirmId(confirmId === s.id ? null : s.id)
+                        }
                         className={cn(
                           "absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-1.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-0 max-lg:opacity-100 max-lg:disabled:opacity-30",
                           confirmId === s.id && "opacity-100",
@@ -303,15 +353,26 @@ export default function DemoPage() {
                           aria-label="Confirm delete"
                           className="absolute top-full right-0 z-20 mt-1 w-56 rounded-md border border-foreground/10 bg-card p-3 text-foreground shadow-md"
                         >
-                          <p className="text-sm font-medium">Delete this session?</p>
+                          <p className="text-sm font-medium">
+                            Delete this session?
+                          </p>
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             Its transcript and summary will be removed.
                           </p>
                           <div className="mt-3 flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => setConfirmId(null)}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setConfirmId(null)}
+                            >
                               Cancel
                             </Button>
-                            <Button variant="destructive" size="sm" autoFocus onClick={() => handleDelete(s.id)}>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              autoFocus
+                              onClick={() => handleDelete(s.id)}
+                            >
                               Delete
                             </Button>
                           </div>
@@ -324,8 +385,8 @@ export default function DemoPage() {
             </aside>
           )}
 
-          <div className="grid min-w-0 flex-1 grid-cols-1 lg:grid-cols-2">
-            <section className="min-w-0 px-6 py-8 sm:px-14 lg:border-r lg:border-foreground/10">
+          <div className="grid min-w-0 flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)]">
+            <section className="min-w-0 px-6 py-8 sm:px-14 lg:overflow-y-auto lg:border-r lg:border-foreground/10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5 text-lg">
                   <span
@@ -378,7 +439,7 @@ export default function DemoPage() {
                   {segments.map((seg, i) => (
                     <div
                       key={i}
-                      className="grid grid-cols-[58px_1fr] gap-2.5 leading-snug"
+                      className="grid grid-cols-[58px_1fr] gap-2.5 text-lg leading-snug"
                     >
                       <time className="label-mono pt-0.5 normal-case tracking-normal">
                         {formatTime(seg.start)}
@@ -419,9 +480,21 @@ export default function DemoPage() {
                   </Button>
                 )}
               </div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Tap{" "}
+                <kbd
+                  className={cn(
+                    "rounded-[4px] border border-foreground/40 px-1.5 py-0.5 font-sans text-xs font-semibold text-foreground transition-colors duration-100",
+                    hotkeyArmed && "border-foreground bg-highlight",
+                  )}
+                >
+                  Control
+                </kbd>{" "}
+                twice to {recorder.recording ? "stop" : "start"} recording
+              </p>
             </section>
 
-            <section className="min-w-0 border-t border-foreground/10 px-6 py-8 sm:px-14 lg:border-t-0">
+            <section className="min-w-0 border-t border-foreground/10 px-6 py-8 sm:px-14 lg:overflow-y-auto lg:border-t-0">
               <div className="mb-5 flex items-start justify-between gap-5">
                 <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">
                   Summary
@@ -468,7 +541,7 @@ export default function DemoPage() {
                         {summary.topics.map((t) => (
                           <span
                             key={t}
-                            className="rounded-full border-2 border-foreground px-3.5 py-0.5 text-sm font-medium"
+                            className="rounded-full border-2 border-foreground px-3.5 py-0.5 text-base font-medium"
                           >
                             {t}
                           </span>
@@ -483,7 +556,7 @@ export default function DemoPage() {
                         {summary.keyPoints.map((p) => (
                           <li
                             key={p}
-                            className="relative pl-5 leading-snug before:absolute before:top-[0.55em] before:left-px before:size-1.5 before:bg-foreground"
+                            className="relative pl-5 text-lg leading-snug before:absolute before:top-[0.55em] before:left-px before:size-1.5 before:bg-foreground"
                           >
                             {p}
                           </li>
@@ -521,7 +594,7 @@ export default function DemoPage() {
                             {summary.tasks.map((task, i) => (
                               <label
                                 key={task}
-                                className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug"
+                                className="flex cursor-pointer items-start gap-2.5 text-base leading-snug"
                               >
                                 <input
                                   type="checkbox"
@@ -547,7 +620,9 @@ export default function DemoPage() {
 
                   {summary.studyTip.trim() && (
                     <Section title="Study tip">
-                      <p className="text-sm leading-snug">{summary.studyTip}</p>
+                      <p className="text-base leading-snug">
+                        {summary.studyTip}
+                      </p>
                     </Section>
                   )}
                 </div>

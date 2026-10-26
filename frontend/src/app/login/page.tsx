@@ -19,8 +19,8 @@ export default function LoginPage() {
   if (status !== "out") return null;
 
   return (
-    <div className="flex min-h-screen justify-center bg-background p-4 sm:p-8">
-      <div className="flex w-full max-w-[1280px] flex-col overflow-hidden border border-foreground/10 bg-card">
+    <div className="flex min-h-screen bg-background p-3 sm:p-4">
+      <div className="flex w-full flex-col overflow-hidden rounded-[22px] border border-foreground/10 bg-card">
         <SiteHeader>
           <Link
             href="/"
