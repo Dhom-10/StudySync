@@ -160,7 +160,7 @@ export function LiveDemoWindow() {
           <div className={cn("flex h-[72px] items-center gap-1 transition-opacity", !recording && "opacity-35")} aria-hidden="true">
             {Array.from({ length: BAR_COUNT }, (_, i) => {
               const wave = recording ? 0.35 + 0.65 * Math.abs(Math.sin(t / 230 + i * 0.8)) * Math.abs(Math.cos(t / 700 + i * 0.35)) : 0.12;
-              return <span key={i} className="w-1 rounded-sm bg-foreground transition-[height] duration-100" style={{ height: 6 + wave * 60 }} />;
+              return <span key={i} className="w-1 rounded-sm bg-foreground transition-[height] duration-100" style={{ height: Math.round(6 + wave * 60) }} />;
             })}
           </div>
 
