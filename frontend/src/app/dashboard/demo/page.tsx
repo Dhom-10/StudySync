@@ -87,10 +87,14 @@ export default function DemoPage() {
   const recorder = useAudioRecorder(async (audio, seq, start) => {
     const id = await lessonPromiseRef.current;
     if (id === null) return;
-    try {
-      await addChunk.mutateAsync({ id, audio, seq, start });
-    } catch (err) {
-      setRequestError(errorMessage(err));
+    // One retry, so a brief hiccup doesn't leave a hole in the transcript.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await addChunk.mutateAsync({ id, audio, seq, start });
+        return;
+      } catch (err) {
+        if (attempt === 1) setRequestError(errorMessage(err));
+      }
     }
   });
   const lesson = useLesson(lessonId).data;
@@ -273,14 +277,13 @@ export default function DemoPage() {
                         type="button"
                         aria-label={`Delete ${s.title}`}
                         title={
-                          s.status === "recording" || s.status === "processing"
+                          s.status === "processing"
                             ? "Wait for this session to finish"
                             : "Delete session"
                         }
                         disabled={
                           recorder.recording ||
                           deleteLesson.isPending ||
-                          s.status === "recording" ||
                           s.status === "processing"
                         }
                         data-delete-confirm

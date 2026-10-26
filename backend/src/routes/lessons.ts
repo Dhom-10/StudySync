@@ -46,9 +46,13 @@ function enqueue(job: () => Promise<void>) {
 }
 
 // Whisper marks silence/noise with tags like [BLANK_AUDIO] or (music); drop those.
+// It also tends to invent short phrases like "you" or "Thank you." over silence; drop those too.
+const SILENCE_HALLUCINATIONS = /^(you|thank you|thanks|thanks for watching|bye|okay)[.!\s]*$/i;
+
 function cleanText(text: string) {
   const cleaned = text.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
-  return /^\(.*\)$/.test(cleaned) ? "" : cleaned;
+  if (/^\(.*\)$/.test(cleaned) || SILENCE_HALLUCINATIONS.test(cleaned)) return "";
+  return cleaned;
 }
 
 async function transcribeChunk(lessonId: number, seq: number, start: number, audio: Buffer) {
@@ -144,8 +148,9 @@ lessons.delete("/:id", (c) => {
   const id = Number(c.req.param("id"));
   const lesson = findLesson(id);
   if (!lesson) return c.json({ error: "Lesson not found" }, 404);
-  // Chunks / summarizing may still be queued for it; wait until it settles.
-  if (lesson.status === "recording" || lesson.status === "processing") {
+  // Summarizing may still be queued for it; wait until it settles. (A "recording" one can be removed,
+  // e.g. after a page refresh left it stuck.)
+  if (lesson.status === "processing") {
     return c.json({ error: "Wait for this session to finish before deleting it" }, 409);
   }
 

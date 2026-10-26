@@ -33,17 +33,20 @@ async function callOllama(transcript: string): Promise<unknown> {
       model: process.env.OLLAMA_MODEL ?? "llama3.2:3b",
       stream: false,
       format: z.toJSONSchema(summarySchema),
-      options: { temperature: 0.2 },
+      // num_ctx: Ollama's default window is small and would silently cut a long transcript; 8192 fits ~25 min.
+      options: { temperature: 0.2, num_ctx: 8192 },
       messages: [
         {
           role: "system",
           content:
             `You summarize a student's spoken transcript in plain language. Today is ${calendar[0]}. Dates for the next two weeks: ${calendar.join(", ")}. ` +
-            "The transcript may be very short, even a single sentence. " +
+            "The transcript may be very short, even a single sentence, or a long lecture. " +
             "Always return at least one topic (a short name) and at least one keyPoint (one sentence; a plain " +
-            "restatement of what was said is fine). " +
+            "restatement of what was said is fine). For a long transcript cover the whole thing: 3 to 6 topics " +
+            "and 4 to 8 distinct key points, not just the opening. " +
             "Also return assignments the speaker mentioned (dueDate as YYYY-MM-DD copied from the date list above, or null " +
-            "if unclear) and tasks the student should do, but only if the transcript actually mentions them; " +
+            "if unclear) and tasks, meaning things the speaker explicitly told the student to do, but only if the " +
+            "transcript actually says them. Never make up assignments or tasks; " +
             "otherwise use an empty array. Give a studyTip only if it follows naturally from the content, " +
             "otherwise an empty string. Do not invent things that are not in the transcript.",
         },

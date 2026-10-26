@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const BAR_COUNT = 33;
 // Whisper only reads finished audio files, so the recording is cut into short, self-contained
 // pieces that are handed to `onChunk` as they complete. Shorter = more "live", longer = fewer cut words.
-const SEGMENT_MS = 8000;
+const SEGMENT_MS = 5000;
 const MIN_SEGMENT_MS = 700;
 
 type OnChunk = (audio: Blob, seq: number, startSec: number) => Promise<void>;
@@ -26,6 +26,7 @@ export function useAudioRecorder(onChunk: OnChunk) {
   const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<Promise<void>[]>([]);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   /** Returns true if the microphone started. */
   const start = useCallback(async () => {
@@ -37,6 +38,9 @@ export function useAudioRecorder(onChunk: OnChunk) {
       setError("Couldn't access the microphone. Check the browser's permission and try again.");
       return false;
     }
+
+    // Keep the screen awake while recording (best effort; not supported everywhere).
+    navigator.wakeLock?.request("screen").then((lock) => (wakeLockRef.current = lock), () => {});
 
     const startedAt = Date.now();
     let seq = 0;
@@ -81,6 +85,8 @@ export function useAudioRecorder(onChunk: OnChunk) {
       clearInterval(tick);
       if (segmentTimerRef.current) clearTimeout(segmentTimerRef.current);
       stream.getTracks().forEach((t) => t.stop());
+      void wakeLockRef.current?.release();
+      wakeLockRef.current = null;
       void audioCtx.close();
     };
 

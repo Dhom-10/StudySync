@@ -58,7 +58,7 @@ export function useLesson(id: number | null) {
     enabled: id !== null,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === "recording" || status === "processing" ? 1500 : false;
+      return status === "recording" || status === "processing" ? 1000 : false;
     },
   });
 }
