@@ -17,8 +17,8 @@ old Prisma/Postgres/JWT setup wholesale.
 | Layer    | Choice                                                                 |
 | -------- | ----------------------------------------------------------------------- |
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui, TanStack Query, Zustand, next-themes |
-| Backend  | Node.js + Express + TypeScript — currently just a health check, no DB/auth yet |
-| Audio    | MediaRecorder + Web Speech API, entirely client-side.                   |
+| Backend  | Node.js + Hono + TypeScript (ESM, `.js` import extensions) + SQLite (`node:sqlite`); lesson pipeline only, no auth |
+| Audio    | `/dashboard/demo`: MediaRecorder (audio only, cut into ~8 s chunks for a live transcript) -> backend -> ffmpeg -> whisper.cpp (tiny.en) -> Ollama (llama3.2:3b), all local. |
 
 The frontend's data fetching hooks and `frontend/src/lib/api.ts` already expect a fuller API
 (`/auth/*`, `/subjects`, `/lessons`, `/assignments`, `/summarize`, `/users/me`, `/stats`,
@@ -29,9 +29,12 @@ asks to wire up a specific piece.
 
 ```
 studysync/
-├── backend/                  # Express API, port 4000 by default
+├── backend/                  # Hono API, port 4000 by default
 │   └── src/
-│       ├── app.ts            # express app, cors, middleware, routes
+│       ├── app.ts            # hono app, cors, routes (/health, /api/lessons)
+│       ├── db.ts             # SQLite (node:sqlite), lessons table
+│       ├── routes/lessons.ts # POST /api/lessons, /:id/chunks, /:id/finish; GET /api/lessons[/:id]
+│       ├── services/         # transcribe.ts (ffmpeg + whisper.cpp), summarize.ts (Ollama)
 │       └── index.ts          # entrypoint — reads PORT, starts the server
 ├── frontend/                 # Next.js App Router, port 3000 by default
 │   └── src/
@@ -48,6 +51,11 @@ studysync/
 ```
 
 ## Running it locally
+
+One-time setup for the `/dashboard/demo` pipeline: `brew install ffmpeg whisper-cpp ollama`,
+`ollama pull llama3.2:3b`, and download `ggml-tiny.en.bin` into `backend/models/` (see
+`backend/.env.example` for the env vars). Start Ollama (`ollama serve`) before using `/dashboard/demo`.
+`/dashboard` is the static mock (it has a "Try the live demo" button) and `/dashboard/demo` is the real pipeline; keep both.
 
 ```bash
 # Backend

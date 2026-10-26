@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import lessons from "./routes/lessons.js";
 
 const app = new Hono();
 
@@ -10,4 +11,6 @@ app.use(
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
-export default app;
+app.route("/api/lessons", lessons);
+
+export default app; 

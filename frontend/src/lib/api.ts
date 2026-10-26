@@ -1,4 +1,4 @@
-import type { User } from "./types";
+import type { Lesson, User } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
@@ -17,7 +17,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: "include",
     headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
@@ -42,4 +42,17 @@ const post = <T>(path: string, data?: unknown) =>
 
 export const authApi = {
   login: (data: { email: string; password: string }) => post<{ user: User }>("/auth/login", data),
+};
+
+export const lessonsApi = {
+  create: () => post<{ id: number }>("/lessons"),
+  addChunk: (id: number, audio: Blob, seq: number, start: number) => {
+    const form = new FormData();
+    form.append("audio", audio, "chunk");
+    form.append("seq", String(seq));
+    form.append("start", String(start));
+    return request<{ ok: true }>(`/lessons/${id}/chunks`, { method: "POST", body: form });
+  },
+  finish: (id: number) => post<{ ok: true }>(`/lessons/${id}/finish`),
+  get: (id: number) => request<Lesson>(`/lessons/${id}`),
 };

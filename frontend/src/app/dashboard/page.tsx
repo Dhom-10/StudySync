@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
@@ -32,13 +33,18 @@ export default function DashboardPage() {
     <div className="flex min-h-screen justify-center bg-background p-4 sm:p-8">
       <div className="flex w-full max-w-[1280px] flex-col overflow-hidden border border-foreground/10 bg-card">
         <SiteHeader>
-          <button
-            type="button"
-            onClick={logout}
-            className="text-sm font-medium underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight"
-          >
-            Log out
-          </button>
+          <div className="flex items-center gap-6">
+            <Button render={<Link href="/dashboard/demo" />} nativeButton={false} variant="secondary">
+              Try the live demo
+            </Button>
+            <button
+              type="button"
+              onClick={logout}
+              className="text-sm font-medium underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight"
+            >
+              Log out
+            </button>
+          </div>
         </SiteHeader>
 
         <div className="flex h-12 items-center gap-5 border-b border-foreground/10 px-6 sm:px-14">
