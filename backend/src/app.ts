@@ -1,13 +1,13 @@
-import cors from "cors";
-import express from "express";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 
-const app = express();
+const app = new Hono();
 
-app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000", credentials: true }));
-app.use(express.json());
+app.use(
+  "*",
+  cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000", credentials: true })
+);
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+app.get("/health", (c) => c.json({ status: "ok" }));
 
 export default app;

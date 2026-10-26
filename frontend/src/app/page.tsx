@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { useLocalAuth } from "@/hooks/use-local-auth";
 
 function scrollToDemo(e: React.MouseEvent) {
   e.preventDefault();
@@ -34,12 +35,14 @@ function LandingPage() {
 }
 
 function Nav() {
+  const { status } = useLocalAuth();
+  const loggedIn = status === "in";
   return (
     <SiteHeader>
       <div className="flex items-center gap-6 text-[15px] font-medium sm:gap-8">
         <a
-          href="#how-it-works"
-          onClick={scrollToDemo}
+          href={loggedIn ? "/dashboard" : "#how-it-works"}
+          onClick={loggedIn ? undefined : scrollToDemo}
           className="hidden underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight sm:inline"
         >
           How it works

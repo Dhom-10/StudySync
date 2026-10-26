@@ -1,8 +1,9 @@
 import "dotenv/config";
-import app from "./app";
+import { serve } from "@hono/node-server";
+import app from "./app.js";
 
-const port = process.env.PORT ?? 4000;
+const port = Number(process.env.PORT ?? 4000);
 
-app.listen(port, () => {
+serve({ fetch: app.fetch, port }, () => {
   console.log(`StudySync backend listening on http://localhost:${port}`);
 });

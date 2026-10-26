@@ -1,9 +1,23 @@
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { useLocalAuth } from "@/hooks/use-local-auth";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { status, login } = useLocalAuth();
+
+  useEffect(() => {
+    if (status === "in") router.replace("/dashboard");
+  }, [status, router]);
+
+  if (status !== "out") return null;
+
   return (
     <div className="flex min-h-screen justify-center bg-background p-4 sm:p-8">
       <div className="flex w-full max-w-[1280px] flex-col overflow-hidden border border-foreground/10 bg-card">
@@ -23,8 +37,7 @@ export default function LoginPage() {
               <p className="mt-2 text-muted-foreground">Pick up where you left off.</p>
 
               <Button
-                render={<Link href="/dashboard" />}
-                nativeButton={false}
+                onClick={login}
                 className="mt-8 h-auto w-full py-3 text-base"
               >
                 Log in

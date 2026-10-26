@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { useLocalAuth } from "@/hooks/use-local-auth";
 import { cn } from "@/lib/utils";
 
 const BARS = [14, 25, 35, 22, 42, 28, 18, 30, 39, 46, 29, 21, 36, 44, 50, 31, 20, 39, 48, 34, 25, 42, 31, 46, 37, 23, 39, 49, 33, 21, 37, 29, 18];
@@ -15,20 +16,29 @@ const TRANSCRIPT = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { status, logout } = useLocalAuth();
   const [recording, setRecording] = useState(true);
   const [summarized, setSummarized] = useState(false);
   const [taskDone, setTaskDone] = useState(false);
+
+  useEffect(() => {
+    if (status === "out") router.replace("/login");
+  }, [status, router]);
+
+  if (status !== "in") return null;
 
   return (
     <div className="flex min-h-screen justify-center bg-background p-4 sm:p-8">
       <div className="flex w-full max-w-[1280px] flex-col overflow-hidden border border-foreground/10 bg-card">
         <SiteHeader>
-          <Link
-            href="/login"
+          <button
+            type="button"
+            onClick={logout}
             className="text-sm font-medium underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight"
           >
             Log out
-          </Link>
+          </button>
         </SiteHeader>
 
         <div className="flex h-12 items-center gap-5 border-b border-foreground/10 px-6 sm:px-14">
