@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocalAuth } from "@/hooks/use-local-auth";
 
@@ -191,9 +192,9 @@ function StudyWindowPreview() {
             <div className="label-mono">Topics</div>
             <div className="flex flex-wrap gap-2">
               {["Photosynthesis", "Light reactions", "Calvin cycle"].map((t) => (
-                <span key={t} className="rounded-full border-2 border-foreground px-3.5 py-1 text-sm font-medium">
+                <Badge key={t} variant="outline" className="h-auto px-3.5 py-1 text-sm">
                   {t}
-                </span>
+                </Badge>
               ))}
             </div>
           </div>
@@ -212,9 +213,9 @@ function StudyWindowPreview() {
             <div className="flex flex-col gap-2">
               <div className="label-mono">Assignments</div>
               <b className="text-[15px]">Lab report</b>
-              <span className="label-mono w-fit rounded-[6px] border-2 border-foreground bg-highlight px-2.5 py-1 tracking-[0.04em] text-foreground">
+              <Badge variant="highlight" className="label-mono h-auto rounded-[6px] px-2.5 py-1 tracking-[0.04em]">
                 Due Fri, Oct 16
-              </span>
+              </Badge>
             </div>
             <div className="flex flex-col gap-2">
               <div className="label-mono">Tasks</div>

@@ -3,9 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, PanelLeft, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Check, PanelLeft, Plus, Trash2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Kbd } from "@/components/ui/kbd";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import {
   useAddChunk,
@@ -108,23 +126,8 @@ export default function DemoPage() {
       window.matchMedia("(min-width: 1024px)").matches,
   );
 
-  // Which session's "Delete?" dropdown is open (null = none); closes on outside click or Escape.
+  // Which session's delete popover is open (null = none).
   const [confirmId, setConfirmId] = useState<number | null>(null);
-  useEffect(() => {
-    if (confirmId === null) return;
-    const onClick = (e: MouseEvent) => {
-      if (!(e.target as Element).closest("[data-delete-confirm]"))
-        setConfirmId(null);
-    };
-    const onKey = (e: KeyboardEvent) =>
-      e.key === "Escape" && setConfirmId(null);
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [confirmId]);
 
   // Hotkey: tapping Control twice quickly starts or stops recording. The handler is kept in a ref so the
   // keydown listener (registered once) always calls the latest version.
@@ -255,26 +258,32 @@ export default function DemoPage() {
             >
               Back to dashboard
             </Link>
-            <button
-              type="button"
-              onClick={logout}
-              className="text-sm font-medium underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight"
-            >
+            <Button variant="link" onClick={logout}>
               Log out
-            </button>
+            </Button>
           </div>
         </SiteHeader>
 
         <div className="flex h-12 shrink-0 items-center gap-4 border-b border-foreground/10 px-6 sm:px-14">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((o) => !o)}
-            aria-label={sidebarOpen ? "Close sessions" : "Open sessions"}
-            aria-expanded={sidebarOpen}
-            className="-ml-1.5 rounded-md p-1.5 transition-colors hover:bg-foreground/5"
-          >
-            <PanelLeft className="size-5" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="-ml-2"
+                  aria-label={sidebarOpen ? "Close sessions" : "Open sessions"}
+                  aria-expanded={sidebarOpen}
+                  onClick={() => setSidebarOpen((o) => !o)}
+                />
+              }
+            >
+              <PanelLeft />
+            </TooltipTrigger>
+            <TooltipContent>
+              {sidebarOpen ? "Close sessions" : "Open sessions"}
+            </TooltipContent>
+          </Tooltip>
           <span className="label-mono normal-case tracking-normal">
             StudySync · Live demo
           </span>
@@ -300,18 +309,13 @@ export default function DemoPage() {
                 <ul className="flex flex-col gap-1 max-lg:max-h-60 max-lg:overflow-y-auto">
                   {sessions.map((s) => (
                     <li key={s.id} className="group relative">
-                      <button
-                        type="button"
+                      <Button
+                        variant={s.id === lessonId ? "default" : "ghost"}
                         disabled={recorder.recording}
                         onClick={() => openSession(s.id)}
-                        className={cn(
-                          "w-full rounded-md py-2 pr-9 pl-2 text-left transition-colors disabled:opacity-60",
-                          s.id === lessonId
-                            ? "bg-foreground text-card"
-                            : "hover:bg-foreground/5",
-                        )}
+                        className="h-auto w-full flex-col items-start gap-0 py-2 pr-9 pl-2 text-left font-normal"
                       >
-                        <span className="block truncate text-sm font-medium">
+                        <span className="block w-full truncate text-sm font-medium">
                           {s.title}
                         </span>
                         <span className="label-mono block text-[11px] normal-case tracking-normal opacity-70">
@@ -320,46 +324,46 @@ export default function DemoPage() {
                           {s.status === "processing" && " · Processing"}
                           {s.status === "error" && " · Failed"}
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Delete ${s.title}`}
-                        title={
-                          s.status === "processing"
-                            ? "Wait for this session to finish"
-                            : "Delete session"
+                      </Button>
+                      <Popover
+                        open={confirmId === s.id}
+                        onOpenChange={(open) =>
+                          setConfirmId(open ? s.id : null)
                         }
-                        disabled={
-                          recorder.recording ||
-                          deleteLesson.isPending ||
-                          s.status === "processing"
-                        }
-                        data-delete-confirm
-                        aria-expanded={confirmId === s.id}
-                        onClick={() =>
-                          setConfirmId(confirmId === s.id ? null : s.id)
-                        }
-                        className={cn(
-                          "absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-1.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-0 max-lg:opacity-100 max-lg:disabled:opacity-30",
-                          confirmId === s.id && "opacity-100",
-                        )}
                       >
-                        <Trash2 className="size-4" />
-                      </button>
-                      {confirmId === s.id && (
-                        <div
-                          data-delete-confirm
-                          role="alertdialog"
-                          aria-label="Confirm delete"
-                          className="absolute top-full right-0 z-20 mt-1 w-56 rounded-md border border-foreground/10 bg-card p-3 text-foreground shadow-md"
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Delete ${s.title}`}
+                              title={
+                                s.status === "processing"
+                                  ? "Wait for this session to finish"
+                                  : "Delete session"
+                              }
+                              disabled={
+                                recorder.recording ||
+                                deleteLesson.isPending ||
+                                s.status === "processing"
+                              }
+                              className={cn(
+                                "absolute top-1/2 right-1 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 max-lg:opacity-100 max-lg:disabled:opacity-30",
+                                confirmId === s.id && "opacity-100",
+                              )}
+                            />
+                          }
                         >
-                          <p className="text-sm font-medium">
-                            Delete this session?
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Its transcript and summary will be removed.
-                          </p>
-                          <div className="mt-3 flex justify-end gap-2">
+                          <Trash2 />
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-60">
+                          <PopoverHeader>
+                            <PopoverTitle>Delete this session?</PopoverTitle>
+                            <PopoverDescription>
+                              Its transcript and summary will be removed.
+                            </PopoverDescription>
+                          </PopoverHeader>
+                          <div className="flex justify-end gap-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -370,14 +374,13 @@ export default function DemoPage() {
                             <Button
                               variant="destructive"
                               size="sm"
-                              autoFocus
                               onClick={() => handleDelete(s.id)}
                             >
                               Delete
                             </Button>
                           </div>
-                        </div>
-                      )}
+                        </PopoverContent>
+                      </Popover>
                     </li>
                   ))}
                 </ul>
@@ -457,7 +460,10 @@ export default function DemoPage() {
               )}
 
               {shownError && (
-                <p className="mt-4 text-sm text-destructive">{shownError}</p>
+                <Alert variant="destructive" className="mt-4">
+                  <AlertCircle />
+                  <AlertDescription>{shownError}</AlertDescription>
+                </Alert>
               )}
 
               <div className="mt-6 flex gap-3">
@@ -482,14 +488,14 @@ export default function DemoPage() {
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
                 Tap{" "}
-                <kbd
+                <Kbd
                   className={cn(
-                    "rounded-[4px] border border-foreground/40 px-1.5 py-0.5 font-sans text-xs font-semibold text-foreground transition-colors duration-100",
+                    "h-auto border border-foreground/40 bg-transparent px-1.5 py-0.5 font-semibold text-foreground transition-colors duration-100",
                     hotkeyArmed && "border-foreground bg-highlight",
                   )}
                 >
                   Control
-                </kbd>{" "}
+                </Kbd>{" "}
                 twice to {recorder.recording ? "stop" : "start"} recording
               </p>
             </section>
@@ -508,15 +514,18 @@ export default function DemoPage() {
 
               {processing && (
                 <p className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" />
+                  <Spinner />
                   {STAGE_LABEL[lesson?.stage ?? "transcribing"]}
                 </p>
               )}
 
               {lesson?.status === "error" && (
-                <p className="text-sm text-destructive">
-                  Something went wrong: {lesson.error}
-                </p>
+                <Alert variant="destructive">
+                  <AlertCircle />
+                  <AlertDescription>
+                    Something went wrong: {lesson.error}
+                  </AlertDescription>
+                </Alert>
               )}
 
               {!processing && !summary && lesson?.status !== "error" && (
@@ -539,12 +548,13 @@ export default function DemoPage() {
                     <Section title="Topics">
                       <div className="flex flex-wrap gap-2">
                         {summary.topics.map((t) => (
-                          <span
+                          <Badge
                             key={t}
-                            className="rounded-full border-2 border-foreground px-3.5 py-0.5 text-base font-medium"
+                            variant="outline"
+                            className="h-auto px-3.5 py-0.5 text-base"
                           >
                             {t}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     </Section>
@@ -580,9 +590,12 @@ export default function DemoPage() {
                                 <strong className="mb-1.5 block">
                                   {a.title}
                                 </strong>
-                                <span className="label-mono inline-block rounded-[6px] border-2 border-foreground bg-highlight px-2.5 py-0.5 font-bold text-foreground normal-case tracking-normal">
+                                <Badge
+                                  variant="highlight"
+                                  className="label-mono h-auto rounded-[6px] px-2.5 py-0.5 font-bold normal-case tracking-normal"
+                                >
                                   {formatDue(a.dueDate)}
-                                </span>
+                                </Badge>
                               </div>
                             ))}
                           </div>
@@ -596,11 +609,10 @@ export default function DemoPage() {
                                 key={task}
                                 className="flex cursor-pointer items-start gap-2.5 text-base leading-snug"
                               >
-                                <input
-                                  type="checkbox"
+                                <Checkbox
                                   checked={doneTasks.has(i)}
-                                  onChange={() => toggleTask(i)}
-                                  className="mt-px size-[18px] shrink-0 accent-foreground"
+                                  onCheckedChange={() => toggleTask(i)}
+                                  className="mt-0.5"
                                 />
                                 <span
                                   className={cn(
