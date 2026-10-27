@@ -3,3 +3,6 @@ dist
 .env
 *.log
 models/
+.DS_Store
+*.db
+*.db-*

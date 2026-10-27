@@ -123,22 +123,27 @@ A session's `status` goes `recording` → `processing` → `done` (or `error`).
 
 ## Project layout
 
+The repository has two folders and this README.
+
 ```
-backend/
+backend/                  Hono API (port 4000)
   src/app.ts              Hono app, CORS, routes
   src/index.ts            Server entry point
   src/db.ts               SQLite setup: lessons and segments tables
   src/routes/lessons.ts   Session routes and the job queue
   src/services/           transcribe.ts (ffmpeg + whisper.cpp), summarize.ts (Ollama)
   models/                 Whisper model file (git-ignored, you download it)
-frontend/
+frontend/                 Next.js app (port 3000)
   src/app/                Pages: landing, login, dashboard, dashboard/demo
+  src/components/         UI primitives (shadcn) and shared pieces
   src/hooks/              use-audio-recorder, use-lessons, use-local-auth
   src/lib/                api.ts (typed fetch client), types.ts
-  src/components/         UI primitives and shared pieces
+  src/design/             Original HTML mockups
+  .claude/skills/         The design guide for AI coding assistants
+  CLAUDE.md               Frontend conventions
 ```
 
-See `AGENTS.md` for design-system and coding conventions.
+Each folder has its own `.gitignore`.
 
 ## Look inside the database
 
