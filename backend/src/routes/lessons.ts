@@ -31,7 +31,7 @@ function serialize(row: LessonRow, withSegments = true) {
     status: row.status,
     stage: row.stage,
     transcript: row.transcript,
-    segments: withSegments ? findSegments(row.id).map((s) => ({ start: s.start_sec, text: s.text })) : [],
+    segments: withSegments ? findSegments(row.id).map((s) => ({ seq: s.seq, start: s.start_sec, text: s.text })) : [],
     summary,
     error: row.error,
     // SQLite stores UTC without a zone marker; make it explicit for the browser.
@@ -40,9 +40,11 @@ function serialize(row: LessonRow, withSegments = true) {
 }
 
 // Whisper and the LLM are heavy; run one job at a time, in the order they arrive.
-let queue: Promise<void> = Promise.resolve();
-function enqueue(job: () => Promise<void>) {
-  queue = queue.then(job);
+let queue: Promise<unknown> = Promise.resolve();
+function enqueue<T>(job: () => Promise<T>): Promise<T> {
+  const result = queue.then(job);
+  queue = result.catch(() => undefined);
+  return result;
 }
 
 // Whisper marks silence/noise with tags like [BLANK_AUDIO] or (music); drop those.
@@ -55,22 +57,56 @@ function cleanText(text: string) {
   return cleaned;
 }
 
-async function transcribeChunk(lessonId: number, seq: number, start: number, audio: Buffer) {
+// While recording, the browser sends a growing preview of the current piece every ~1.5 s ("interim"),
+// then the finished piece ("final"). Only the newest request for a piece is worth transcribing.
+const latestRequest = new Map<string, number>();
+const finalized = new Set<string>();
+
+function saveSegment(lessonId: number, seq: number, start: number, text: string) {
+  const existing = db.prepare("SELECT id FROM segments WHERE lesson_id = ? AND seq = ?").get(lessonId, seq) as
+    | { id: number }
+    | undefined;
+  if (!text) {
+    if (existing) db.prepare("DELETE FROM segments WHERE id = ?").run(existing.id);
+  } else if (existing) {
+    db.prepare("UPDATE segments SET text = ?, start_sec = ? WHERE id = ?").run(text, start, existing.id);
+  } else {
+    db.prepare("INSERT INTO segments (lesson_id, seq, start_sec, text) VALUES (?, ?, ?, ?)").run(
+      lessonId,
+      seq,
+      start,
+      text
+    );
+  }
+}
+
+async function transcribeChunk(
+  lessonId: number,
+  seq: number,
+  start: number,
+  audio: Buffer,
+  isFinal: boolean,
+  version: number
+) {
+  const key = `${lessonId}:${seq}`;
+  // Superseded by a newer preview, or the piece is already final: skip the work.
+  if (!isFinal && (finalized.has(key) || latestRequest.get(key) !== version)) return { skipped: true, text: "" };
+
   try {
     const text = cleanText(await transcribe(audio));
-    if (text) {
-      db.prepare("INSERT INTO segments (lesson_id, seq, start_sec, text) VALUES (?, ?, ?, ?)").run(
-        lessonId,
-        seq,
-        start,
-        text
-      );
-    }
+    saveSegment(lessonId, seq, start, text);
+    return { skipped: false, text };
   } catch (err) {
-    // Non-fatal: surfaced to the UI, and used as the reason if nothing could be transcribed at all.
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`Lesson ${lessonId} chunk ${seq} failed:`, message);
-    db.prepare("UPDATE lessons SET error = ? WHERE id = ?").run(message, lessonId);
+    console.error(`Lesson ${lessonId} chunk ${seq} (${isFinal ? "final" : "preview"}) failed:`, message);
+    // A failed preview is harmless (the final piece covers it); only real failures are shown to the user.
+    if (isFinal) db.prepare("UPDATE lessons SET error = ? WHERE id = ?").run(message, lessonId);
+    return { skipped: false, text: null };
+  } finally {
+    if (isFinal) {
+      finalized.add(key);
+      latestRequest.delete(key);
+    }
   }
 }
 
@@ -116,9 +152,14 @@ lessons.post("/:id/chunks", async (c) => {
     return c.json({ error: "Send multipart fields 'audio', 'seq' and 'start'" }, 400);
   }
 
+  const isFinal = form["final"] !== "0";
+  const key = `${id}:${seq}`;
+  const version = (latestRequest.get(key) ?? 0) + 1;
+  latestRequest.set(key, version);
+
   const buffer = Buffer.from(await audio.arrayBuffer());
-  enqueue(() => transcribeChunk(id, seq, Math.max(0, Math.floor(start)), buffer));
-  return c.json({ ok: true }, 202);
+  const result = await enqueue(() => transcribeChunk(id, seq, Math.max(0, Math.floor(start)), buffer, isFinal, version));
+  return c.json({ seq, start: Math.max(0, Math.floor(start)), final: isFinal, ...result });
 });
 
 // Queued after the pending chunks, so it always sees the full transcript.
@@ -134,7 +175,8 @@ lessons.post("/:id/finish", (c) => {
 });
 
 lessons.get("/", (c) => {
-  const rows = db.prepare("SELECT * FROM lessons ORDER BY id DESC").all() as unknown as LessonRow[];
+  // Failed sessions are never listed; one stays reachable by id just long enough to show its error.
+  const rows = db.prepare("SELECT * FROM lessons WHERE status != 'error' ORDER BY id DESC").all() as unknown as LessonRow[];
   return c.json(rows.map((row) => serialize(row, false)));
 });
 
@@ -142,6 +184,19 @@ lessons.get("/:id", (c) => {
   const row = findLesson(Number(c.req.param("id")));
   if (!row) return c.json({ error: "Lesson not found" }, 404);
   return c.json(serialize(row));
+});
+
+// Clear everything: removes every session and its transcript lines. Refuses while one is still being
+// recorded or processed, since those still have work queued.
+lessons.delete("/", (c) => {
+  const busy = db.prepare("SELECT COUNT(*) AS n FROM lessons WHERE status IN ('recording', 'processing')").get() as unknown as {
+    n: number;
+  };
+  if (busy.n > 0) return c.json({ error: "Wait for the current session to finish before clearing" }, 409);
+
+  const total = db.prepare("SELECT COUNT(*) AS n FROM lessons").get() as unknown as { n: number };
+  db.exec("DELETE FROM segments; DELETE FROM lessons;");
+  return c.json({ deleted: total.n });
 });
 
 lessons.delete("/:id", (c) => {

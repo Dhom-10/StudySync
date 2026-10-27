@@ -6,7 +6,7 @@ import { FitText } from "@/components/landing/fit-text";
 import { LiveDemoWindow } from "@/components/landing/live-demo";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { useLocalAuth } from "@/hooks/use-local-auth";
+import { WritingGroup, WritingText, WritingWord, writingDelays } from "@/components/ui/writing-text";
 import { cn } from "@/lib/utils";
 
 // Sections fill the screen (dvh = real visible height, even with mobile browser bars).
@@ -16,12 +16,15 @@ const HERO_SCREEN = "min-h-[calc(100dvh-0.75rem-1px)] sm:min-h-[calc(100dvh-1rem
 // The last section keeps the page margin below it as well.
 const SCREEN = "min-h-[calc(100dvh-1.5rem)] sm:min-h-[calc(100dvh-2rem)]";
 
+// Hero headline: each word rises in after the previous one (longer words and full stops add a pause).
+const HERO_RISE_MS = 1000;
+const HERO_DELAYS = writingDelays(["Stop", "writing.", "Start", "listening."], 70, 200);
+
 function scrollToDemo(e: React.MouseEvent) {
   e.preventDefault();
   const el = document.getElementById("how-it-works");
   if (!el) return;
-  const top = el.getBoundingClientRect().top + window.scrollY - 92;
-  window.scrollTo({ top, behavior: "smooth" });
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY, behavior: "smooth" });
 }
 
 export default function RootPage() {
@@ -48,14 +51,12 @@ function LandingPage() {
 }
 
 function Nav() {
-  const { status } = useLocalAuth();
-  const loggedIn = status === "in";
   return (
     <SiteHeader>
       <div className="flex items-center gap-6 text-[15px] font-medium sm:gap-8">
         <a
-          href={loggedIn ? "/dashboard" : "#how-it-works"}
-          onClick={loggedIn ? undefined : scrollToDemo}
+          href="#how-it-works"
+          onClick={scrollToDemo}
           className="hidden underline decoration-transparent decoration-2 underline-offset-4 transition-colors hover:decoration-highlight sm:inline"
         >
           How it works
@@ -71,20 +72,37 @@ function Nav() {
 function Hero() {
   return (
     <div className="flex flex-1 flex-col items-start justify-center gap-6 px-6 py-12 sm:px-14">
-      <h1 className="font-display text-[44px] leading-[1] font-extrabold tracking-[-0.02em] [font-stretch:75%] sm:text-[80px] lg:text-[120px] xl:text-[140px]">
-        <div>
-          Stop{" "}
-          <span className="relative inline-block">
-            writing.
-            <span className="absolute inset-x-0 top-1/2 h-[6px] bg-destructive sm:h-[8px] xl:h-[11px]" aria-hidden="true" />
-          </span>
+      <h1
+        aria-label="Stop writing. Start listening."
+        className="font-display text-[44px] leading-[1] font-extrabold tracking-[-0.02em] [font-stretch:75%] sm:text-[80px] lg:text-[120px] xl:text-[140px]"
+      >
+        <WritingGroup>
+        <div aria-hidden="true">
+          <WritingWord delay={HERO_DELAYS[0]} duration={HERO_RISE_MS}>
+            Stop
+          </WritingWord>{" "}
+          <WritingWord delay={HERO_DELAYS[1]} duration={HERO_RISE_MS}>
+            <span className="relative inline-block">
+              writing.
+              {/* the strike-through is drawn across the word once it has landed */}
+              <span
+                className="writing-text-draw absolute inset-x-0 top-1/2 h-[6px] bg-destructive sm:h-[8px] xl:h-[11px]"
+                style={{ "--writing-text-delay": `${HERO_DELAYS[1] + HERO_RISE_MS * 0.7}ms` } as React.CSSProperties}
+              />
+            </span>
+          </WritingWord>
         </div>
-        <div className="mt-1.5">
-          Start{" "}
-          <mark className="inline-block -rotate-[1.5deg] bg-highlight px-3 text-foreground sm:px-4 xl:px-5">
-            listening.
-          </mark>
+        <div className="mt-1.5" aria-hidden="true">
+          <WritingWord delay={HERO_DELAYS[2]} duration={HERO_RISE_MS}>
+            Start
+          </WritingWord>{" "}
+          <WritingWord delay={HERO_DELAYS[3]} duration={HERO_RISE_MS}>
+            <mark className="inline-block -rotate-[1.5deg] bg-highlight px-3 text-foreground sm:px-4 xl:px-5">
+              listening.
+            </mark>
+          </WritingWord>
         </div>
+        </WritingGroup>
       </h1>
       <p className="max-w-[620px] text-xl leading-snug sm:text-[22px]">
         StudySync records your lecture, transcribes it live, and hands you topics, key points, due
@@ -116,7 +134,7 @@ function Hero() {
 
 function WindowBand() {
   return (
-    <section className="flex min-h-dvh items-center justify-center bg-highlight px-4 sm:px-10">
+    <section id="how-it-works" className="flex min-h-dvh items-center justify-center bg-highlight px-4 sm:px-10">
       <div className="w-full max-w-[1240px]">
         <LiveDemoWindow />
       </div>
@@ -145,7 +163,9 @@ function FeatureGrid() {
             {f.n}
           </span>
           <span className="label-mono">{f.label}</span>
-          <b className="font-display text-3xl font-extrabold tracking-[-0.02em] sm:text-4xl">{f.title}</b>
+          <b className="font-display text-3xl font-extrabold tracking-[-0.02em] sm:text-4xl">
+            <WritingText text={f.title} />
+          </b>
           <span className="max-w-sm text-lg leading-[1.45] sm:text-xl">{f.body}</span>
         </div>
       ))}
@@ -157,9 +177,7 @@ function ClosingCta() {
   return (
     <div className="flex flex-col items-start justify-between gap-6 px-6 py-14 sm:flex-row sm:items-center sm:px-14 sm:py-16">
       <h2 className="font-display text-4xl leading-[1] font-extrabold tracking-[-0.02em] [font-stretch:75%] sm:text-[60px]">
-        Stop taking notes.
-        <br />
-        Start understanding.
+        <WritingText text={"Stop taking notes.\nStart understanding."} speed={40} />
       </h2>
       <Button
         render={<Link href="/login" />}

@@ -12,7 +12,7 @@ with a small model through Ollama. No audio or text leaves your computer, and no
 Browser (audio only, cut into ~8 s pieces while you record)
    │  POST /api/lessons/:id/chunks   (one request per piece)
    ▼
-Hono backend ── ffmpeg ──▶ 16 kHz mono wav ──▶ whisper.cpp (tiny.en) ──▶ transcript lines
+Hono backend ── ffmpeg ──▶ 16 kHz mono wav ──▶ whisper.cpp (small.en) ──▶ transcript lines
    │                                                                      │ saved in SQLite
    │  POST /api/lessons/:id/finish                                        ▼
    └──────────────▶ Ollama (llama3.2:3b) ──▶ JSON summary ──▶ SQLite ──▶ shown in the browser
@@ -45,10 +45,10 @@ Hono backend ── ffmpeg ──▶ 16 kHz mono wav ──▶ whisper.cpp (tiny
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui on Base UI, TanStack Query |
 | Backend | Node.js + Hono + TypeScript (ESM) on port 4000 |
 | Database | SQLite through Node's built-in `node:sqlite` (one file: `backend/studysync.db`) |
-| Speech to text | whisper.cpp with the `ggml-tiny.en` model, audio converted by ffmpeg |
+| Speech to text | whisper.cpp with the `ggml-small.en` model, audio converted by ffmpeg |
 | Summary | Ollama running `llama3.2:3b`, answering in a fixed JSON schema (validated with Zod) |
 
-Peak memory is roughly 7 GB including macOS, so it runs comfortably on a 16 GB Mac.
+Peak memory is roughly 8 GB including macOS, so it runs comfortably on a 16 GB Mac.
 Whisper and the language model never run at the same time: jobs are processed one at a time.
 
 ## Setup (once)
@@ -62,10 +62,10 @@ brew install ffmpeg whisper-cpp ollama
 # 2. Summary model (about 2 GB)
 ollama pull llama3.2:3b
 
-# 3. Speech model (about 75 MB), saved where the backend expects it
+# 3. Speech model (about 470 MB), saved where the backend expects it
 mkdir -p backend/models
-curl -L -o backend/models/ggml-tiny.en.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+curl -L -o backend/models/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 
 # 4. Install dependencies and create the backend settings file
 cd backend && cp .env.example .env && npm install && cd ..
@@ -97,13 +97,13 @@ To shut down, press `Ctrl+C` in each tab. Your sessions stay in `backend/studysy
 | `FRONTEND_URL` | `http://localhost:3000` | Origin allowed by CORS |
 | `DB_PATH` | `./studysync.db` | SQLite file, relative to the folder you start the backend from |
 | `WHISPER_BIN` | `whisper-cli` | whisper.cpp command |
-| `WHISPER_MODEL_PATH` | `./models/ggml-tiny.en.bin` | Whisper model file |
+| `WHISPER_MODEL_PATH` | `./models/ggml-small.en.bin` | Whisper model file |
 | `FFMPEG_BIN` | `ffmpeg` | ffmpeg command |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama server |
 | `OLLAMA_MODEL` | `llama3.2:3b` | Model used for summaries |
 
-Quality too low? Swap models without touching code: a bigger Whisper model (`base.en`, `small.en`)
-via `WHISPER_MODEL_PATH`, or a larger Ollama model via `OLLAMA_MODEL` (needs more memory).
+Quality too low, or too slow? Swap models without touching code: another Whisper model (`tiny.en` is
+faster but less accurate, `medium.en` is more accurate but slower) via `WHISPER_MODEL_PATH`, or a larger Ollama model via `OLLAMA_MODEL` (needs more memory).
 
 ## API
 
@@ -156,7 +156,7 @@ SELECT lesson_id, seq, start_sec, text FROM segments ORDER BY lesson_id, seq;
 | Symptom | Likely cause |
 | --- | --- |
 | "Could not run ffmpeg" or "Could not run whisper-cli" | The tool isn't installed or not on your `PATH`. Check `ffmpeg -version` and `whisper-cli --help` |
-| Error about the model file | `backend/models/ggml-tiny.en.bin` is missing: redo the speech model download |
+| Error about the model file | `backend/models/ggml-small.en.bin` is missing: redo the speech model download |
 | "Ollama returned…" or "fetch failed" | Ollama isn't running: start `ollama serve` |
 | "Couldn't reach the backend" | Backend isn't running on port 4000 |
 | "No speech was detected" | Whisper heard nothing: check that the right microphone is selected |
@@ -166,6 +166,6 @@ SELECT lesson_id, seq, start_sec, text FROM segments ORDER BY lesson_id, seq;
 
 - No real authentication yet: login is a `localStorage` flag, and all sessions are visible to anyone using the app.
 - Long recordings: the summary only reads roughly the first 24,000 characters of the transcript.
-- Words at the boundary between two audio pieces can be clipped, and the tiny Whisper model makes occasional mistakes.
+- Words at the boundary between two audio pieces can be clipped, and the Whisper model still makes occasional mistakes.
 - Audio itself is not stored, only the transcript and summary.
 - No automated tests yet.

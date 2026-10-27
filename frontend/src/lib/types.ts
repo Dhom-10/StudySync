@@ -24,8 +24,17 @@ export interface Lesson {
   status: "recording" | "processing" | "done" | "error";
   stage: "transcribing" | "summarizing" | null;
   transcript: string | null;
-  segments: { start: number; text: string }[];
+  segments: { seq: number; start: number; text: string }[];
   summary: LessonSummary | null;
   error: string | null;
   createdAt: string;
+}
+
+/** Reply to an uploaded audio piece: the text heard so far for that piece (null if transcription failed). */
+export interface ChunkResult {
+  seq: number;
+  start: number;
+  final: boolean;
+  skipped: boolean;
+  text: string | null;
 }

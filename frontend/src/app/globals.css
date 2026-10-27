@@ -125,11 +125,27 @@
   }
   html {
     @apply font-sans;
+  }
+  /* No visible scrollbars anywhere (the page, the transcript, the sessions list); scrolling still works. */
+  * {
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
-  html::-webkit-scrollbar {
+  *::-webkit-scrollbar {
     display: none;
+  }
+  /* Anything clickable shows the pointer cursor (Tailwind resets buttons to the default arrow). */
+  button:not(:disabled),
+  a[href],
+  summary,
+  label[for],
+  select:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="checkbox"]:not([aria-disabled="true"]),
+  [role="switch"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 }
 
@@ -137,5 +153,83 @@
   .label-mono {
     font-family: var(--font-mono);
     @apply text-xs tracking-[0.12em] text-muted-foreground uppercase;
+  }
+}
+
+/* Writing text: words rise into place one after another (components/ui/writing-text.tsx). */
+@keyframes writing-text-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--writing-text-y, 0.4em));
+    filter: blur(var(--writing-text-blur, 6px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes writing-text-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.writing-text-word {
+  opacity: 0;
+  animation: writing-text-rise var(--writing-text-duration, 1000ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--writing-text-delay, 0ms);
+}
+
+.writing-text-draw {
+  transform-origin: left;
+  animation: writing-text-draw 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--writing-text-delay, 0ms);
+}
+
+/* "view" trigger: hold every animation until the text scrolls into view. */
+[data-writing-paused] .writing-text-word,
+[data-writing-paused] .writing-text-draw {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .writing-text-word {
+    opacity: 1;
+    animation: none;
+  }
+  .writing-text-draw {
+    animation: none;
+  }
+}
+
+
+/* Shimmering text: a band of light travels along the line, then rests (components/ui/shimmering-text.tsx). */
+@keyframes shimmering-text-pass {
+  0%,
+  22%,
+  100% {
+    color: var(--shimmering-text-color);
+    transform: none;
+  }
+  11% {
+    color: var(--shimmering-text-shimmer-color);
+    transform: translateY(var(--shimmering-text-lift, 0));
+  }
+}
+
+.shimmering-text-char {
+  color: var(--shimmering-text-color);
+  animation: shimmering-text-pass var(--shimmering-text-duration, 2000ms) ease-in-out infinite;
+  animation-delay: var(--shimmering-text-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmering-text-char {
+    animation: none;
   }
 }

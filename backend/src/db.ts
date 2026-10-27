@@ -45,9 +45,11 @@ db.exec(`
   )
 `);
 
-// A restart mid-processing would leave a lesson stuck forever; fail it instead.
-db.exec(
-  `UPDATE lessons SET status = 'error', stage = NULL, error = 'Server restarted while processing' WHERE status IN ('recording', 'processing')`
-);
+// Failed sessions are not kept. A restart in the middle of a recording or processing would leave a lesson
+// stuck forever, so those are discarded too (their transcript lines go with them).
+db.exec(`
+  DELETE FROM segments WHERE lesson_id IN (SELECT id FROM lessons WHERE status IN ('error', 'recording', 'processing'));
+  DELETE FROM lessons WHERE status IN ('error', 'recording', 'processing');
+`);
 
 export default db;

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { WritingWord, writingDelays } from "@/components/ui/writing-text";
+import { splitWords } from "@/components/words";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -23,19 +25,22 @@ export function formatDue(iso: string | null) {
 type Kind = "topic" | "point" | "assignment" | "due" | "task" | "tip";
 interface Item {
   kind: Kind;
-  text: string;
+  words: string[];
   index: number;
-  start: number; // character offset in the stream where this item begins typing
+  delays: number[]; // when each word starts to appear (ms from the start of the reveal)
 }
 
-// Small pause (in characters) between items so the "typing" has a natural rhythm.
-const GAP = 6;
+// Milliseconds each character holds the next word back (slightly quicker than the titles, since a summary is long).
+const SUMMARY_SPEED = 18;
+const RISE_MS = 1000; // matches the writing effect's default
 
-/** Flattens the summary into the order it is "typed" in. Everything else derives from this list. */
+/** Flattens the summary into the order it appears in. Everything else derives from this list. */
 function buildItems(s: SummaryData): Item[] {
-  const raw: Omit<Item, "start">[] = [];
+  const raw: { kind: Kind; text: string; index: number }[] = [];
   s.topics.forEach((text, index) => raw.push({ kind: "topic", text, index }));
-  s.keyPoints.forEach((text, index) => raw.push({ kind: "point", text, index }));
+  s.keyPoints.forEach((text, index) =>
+    raw.push({ kind: "point", text, index }),
+  );
   s.assignments.forEach((a, index) => {
     raw.push({ kind: "assignment", text: a.title, index });
     raw.push({ kind: "due", text: a.dueLabel ?? formatDue(a.dueDate), index });
@@ -43,88 +48,106 @@ function buildItems(s: SummaryData): Item[] {
   s.tasks.forEach((text, index) => raw.push({ kind: "task", text, index }));
   if (s.studyTip.trim()) raw.push({ kind: "tip", text: s.studyTip, index: 0 });
 
-  let cursor = 0;
-  return raw.map((item) => {
-    const withStart = { ...item, start: cursor };
-    cursor += item.text.length + GAP;
-    return withStart;
+  const split = raw.map((r) => ({ ...r, words: splitWords(r.text) }));
+  // One continuous rhythm across the whole summary; each item ends with a short pause before the next.
+  const flat = split.flatMap((r) =>
+    r.words.map((w, i) =>
+      i === r.words.length - 1 && !/[.!?,;:]$/.test(w) ? `${w},` : w,
+    ),
+  );
+  const all = writingDelays(flat, SUMMARY_SPEED);
+  let at = 0;
+  return split.map((r) => {
+    const delays = all.slice(at, at + r.words.length);
+    at += r.words.length;
+    return { kind: r.kind, words: r.words, index: r.index, delays };
   });
 }
 
-/** Total length of the typing stream, for timing an animation. */
-export function streamLength(s: SummaryData) {
-  const items = buildItems(s);
-  const last = items[items.length - 1];
-  return last ? last.start + last.text.length + GAP : 0;
-}
-
-/** Drives a typing reveal: returns the number of characters shown so far (Infinity = everything). */
-export function useTypewriter(total: number, active: boolean, charsPerSecond = 70) {
-  const [progress, setProgress] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    const startedAt = performance.now();
-    const id = setInterval(() => {
-      const next = ((performance.now() - startedAt) * charsPerSecond) / 1000;
-      if (next >= total) {
-        setProgress(Infinity);
-        clearInterval(id);
-      } else {
-        setProgress(next);
-      }
-    }, 40);
-    return () => clearInterval(id);
-  }, [active, total, charsPerSecond]);
-  return active ? progress : Infinity;
+/** How long the whole summary takes to write itself in, in ms. */
+export function summaryRevealMs(s: SummaryData) {
+  const last = buildItems(s).at(-1);
+  return last ? (last.delays.at(-1) ?? 0) + RISE_MS : 0;
 }
 
 const SIZES = {
   md: { body: "text-base", heading: "gap-6", pill: "text-base" },
-  lg: { body: "text-lg sm:text-xl", heading: "gap-7", pill: "text-base sm:text-lg" },
+  lg: {
+    body: "text-lg sm:text-xl",
+    heading: "gap-7",
+    pill: "text-base sm:text-lg",
+  },
 } as const;
 
-function Caret() {
-  return <span aria-hidden="true" className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] animate-pulse bg-foreground" />;
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  className,
+  style,
+  children,
+}: {
+  title: string;
+  className?: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-2.5">
-      <h2 className="label-mono">{title}</h2>
+      <h2 className={cn("label-mono", className)} style={style}>
+        {title}
+      </h2>
       {children}
     </div>
   );
 }
 
+const delayStyle = (ms: number) =>
+  ({ "--writing-text-delay": `${ms}ms` }) as React.CSSProperties;
+
 /**
  * The summary sections (topics, key points, assignments, tasks, study tip). Sections with nothing in
- * them are not rendered. `progress` reveals the text character by character, like a streamed reply.
+ * them are not rendered. With `animate`, the words write themselves in with the same effect as the
+ * page titles: the layout is there from the start, and each label, pill and word fades in on its turn.
  */
 export function SummaryStream({
   summary,
-  progress = Infinity,
+  animate = false,
   size = "md",
 }: {
   summary: SummaryData;
-  progress?: number;
+  animate?: boolean;
   size?: keyof typeof SIZES;
 }) {
   const [doneTasks, setDoneTasks] = useState<Set<number>>(new Set());
   const items = buildItems(summary);
   const s = SIZES[size];
 
-  const shown = (item: Item) => item.text.slice(0, Math.max(0, Math.floor(progress - item.start)));
-  const typing = (item: Item) => Number.isFinite(progress) && progress >= item.start && progress < item.start + item.text.length + GAP;
-  const ofKind = (kind: Kind) => items.filter((i) => i.kind === kind && shown(i).length > 0);
-
+  const ofKind = (kind: Kind) => items.filter((i) => i.kind === kind);
   const topics = ofKind("topic");
   const points = ofKind("point");
   const assignments = ofKind("assignment");
   const tasks = ofKind("task");
   const tip = ofKind("tip")[0];
-  const dueFor = (index: number) => items.find((i) => i.kind === "due" && i.index === index);
-  const hasAssignments = items.some((i) => i.kind === "assignment");
-  const hasTasks = items.some((i) => i.kind === "task");
+  const dueFor = (index: number) =>
+    items.find((i) => i.kind === "due" && i.index === index);
+
+  /** Class and delay that make an element fade in when `item` begins to appear. */
+  const enter = (item: Item | undefined) => ({
+    className: animate ? "writing-text-word" : undefined,
+    style: animate && item ? delayStyle(item.delays[0] ?? 0) : undefined,
+  });
+
+  // The words of one item, each with its own delay.
+  const text = (item: Item) =>
+    item.words.map((word, i) => (
+      <span key={i}>
+        {i > 0 && " "}
+        {animate ? (
+          <WritingWord delay={item.delays[i]}>{word}</WritingWord>
+        ) : (
+          <span className="inline-block">{word}</span>
+        )}
+      </span>
+    ));
 
   function toggleTask(i: number) {
     setDoneTasks((prev) => {
@@ -137,12 +160,16 @@ export function SummaryStream({
   return (
     <div className={cn("flex flex-col", s.heading)}>
       {topics.length > 0 && (
-        <Section title="Topics">
+        <Section title="Topics" {...enter(topics[0])}>
           <div className="flex flex-wrap gap-2">
             {topics.map((t) => (
-              <Badge key={t.index} variant="outline" className={cn("h-auto px-3.5 py-1", s.pill)}>
-                {shown(t)}
-                {typing(t) && <Caret />}
+              <Badge
+                key={t.index}
+                variant="outline"
+                className={cn("h-auto px-3.5 py-1", s.pill, enter(t).className)}
+                style={enter(t).style}
+              >
+                {t.words.join(" ")}
               </Badge>
             ))}
           </div>
@@ -150,18 +177,19 @@ export function SummaryStream({
       )}
 
       {points.length > 0 && (
-        <Section title="Key points">
+        <Section title="Key points" {...enter(points[0])}>
           <ul className="grid gap-2">
             {points.map((p) => (
               <li
                 key={p.index}
                 className={cn(
                   "relative pl-5 leading-snug before:absolute before:top-[0.6em] before:left-px before:size-1.5 before:bg-foreground",
-                  s.body
+                  s.body,
+                  enter(p).className,
                 )}
+                style={enter(p).style}
               >
-                {shown(p)}
-                {typing(p) && <Caret />}
+                {text(p)}
               </li>
             ))}
           </ul>
@@ -169,22 +197,33 @@ export function SummaryStream({
       )}
 
       {(assignments.length > 0 || tasks.length > 0) && (
-        <div className={cn("grid gap-7", hasAssignments && hasTasks && "sm:grid-cols-2")}>
+        <div
+          className={cn(
+            "grid gap-7",
+            assignments.length > 0 && tasks.length > 0 && "sm:grid-cols-2",
+          )}
+        >
           {assignments.length > 0 && (
-            <Section title="Assignments">
+            <Section title="Assignments" {...enter(assignments[0])}>
               <div className="grid gap-3">
                 {assignments.map((a) => {
                   const due = dueFor(a.index);
                   return (
-                    <div key={a.index} className="flex flex-col items-start gap-1.5">
-                      <strong className={s.body}>
-                        {shown(a)}
-                        {typing(a) && <Caret />}
-                      </strong>
-                      {due && shown(due).length > 0 && (
-                        <Badge variant="highlight" className="label-mono h-auto rounded-[6px] px-2.5 py-0.5 font-bold normal-case tracking-normal">
-                          {shown(due)}
-                          {typing(due) && <Caret />}
+                    <div
+                      key={a.index}
+                      className="flex flex-col items-start gap-1.5"
+                    >
+                      <strong className={s.body}>{text(a)}</strong>
+                      {due && (
+                        <Badge
+                          variant="highlight"
+                          className={cn(
+                            "label-mono h-auto rounded-[6px] px-2.5 py-0.5 font-bold normal-case tracking-normal",
+                            enter(due).className,
+                          )}
+                          style={enter(due).style}
+                        >
+                          {due.words.join(" ")}
                         </Badge>
                       )}
                     </div>
@@ -194,18 +233,32 @@ export function SummaryStream({
             </Section>
           )}
           {tasks.length > 0 && (
-            <Section title="Tasks">
+            <Section title="Tasks" {...enter(tasks[0])}>
               <div className="grid gap-2">
                 {tasks.map((task) => (
-                  <label key={task.index} className={cn("flex cursor-pointer items-start gap-2.5 leading-snug", s.body)}>
-                    <Checkbox
-                      checked={doneTasks.has(task.index)}
-                      onCheckedChange={() => toggleTask(task.index)}
-                      className="mt-1"
-                    />
-                    <span className={cn(doneTasks.has(task.index) && "text-muted-foreground line-through")}>
-                      {shown(task)}
-                      {typing(task) && <Caret />}
+                  <label
+                    key={task.index}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-2.5 leading-snug",
+                      s.body,
+                    )}
+                  >
+                    <span
+                      className={cn("mt-1 inline-flex", enter(task).className)}
+                      style={enter(task).style}
+                    >
+                      <Checkbox
+                        checked={doneTasks.has(task.index)}
+                        onCheckedChange={() => toggleTask(task.index)}
+                      />
+                    </span>
+                    <span
+                      className={cn(
+                        doneTasks.has(task.index) &&
+                          "text-muted-foreground line-through",
+                      )}
+                    >
+                      {text(task)}
                     </span>
                   </label>
                 ))}
@@ -216,19 +269,10 @@ export function SummaryStream({
       )}
 
       {tip && (
-        <Section title="Study tip">
-          <p className={cn("leading-snug", s.body)}>
-            {shown(tip)}
-            {typing(tip) && <Caret />}
-          </p>
+        <Section title="Study tip" {...enter(tip)}>
+          <p className={cn("leading-snug", s.body)}>{text(tip)}</p>
         </Section>
       )}
     </div>
   );
-}
-
-/** SummaryStream that animates itself once on mount (when `animate`), e.g. for a freshly written summary. */
-export function AnimatedSummary({ summary, animate, size }: { summary: SummaryData; animate: boolean; size?: keyof typeof SIZES }) {
-  const progress = useTypewriter(streamLength(summary), animate);
-  return <SummaryStream summary={summary} progress={progress} size={size} />;
 }

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lessonsApi } from "@/lib/api";
+import type { Lesson } from "@/lib/types";
 
 export function useCreateLesson() {
   const queryClient = useQueryClient();
@@ -34,10 +35,34 @@ export function useDeleteLesson() {
   });
 }
 
-export function useAddChunk() {
+export function useClearLessons() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id: number; audio: Blob; seq: number; start: number }) =>
-      lessonsApi.addChunk(v.id, v.audio, v.seq, v.start),
+    mutationFn: lessonsApi.clear,
+    onSuccess: () => {
+      queryClient.setQueryData(LIST_KEY, []);
+      queryClient.removeQueries({ queryKey: ["lessons"], predicate: (q) => q.queryKey[1] !== "list" });
+    },
+  });
+}
+
+export function useAddChunk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; audio: Blob; seq: number; start: number; final: boolean }) =>
+      lessonsApi.addChunk(v.id, v.audio, v.seq, v.start, v.final),
+    // Show the text straight from the reply instead of waiting for the next poll.
+    onSuccess: (result, v) => {
+      if (result.skipped || result.text === null) return;
+      queryClient.setQueryData<Lesson>(["lessons", v.id], (old) => {
+        if (!old) return old;
+        const others = old.segments.filter((s) => s.seq !== result.seq);
+        const segments = result.text
+          ? [...others, { seq: result.seq, start: result.start, text: result.text }].sort((a, b) => a.seq - b.seq)
+          : others;
+        return { ...old, segments };
+      });
+    },
   });
 }
 

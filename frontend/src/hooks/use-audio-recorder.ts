@@ -5,10 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const BAR_COUNT = 33;
 // Whisper only reads finished audio files, so the recording is cut into short, self-contained
 // pieces that are handed to `onChunk` as they complete. Shorter = more "live", longer = fewer cut words.
-const SEGMENT_MS = 5000;
+const SEGMENT_MS = 4000;
+// While a piece is being recorded, a growing preview of it is sent this often, so words appear
+// about this long after they are spoken instead of only when the whole piece ends.
+const PREVIEW_MS = 1500;
 const MIN_SEGMENT_MS = 700;
 
-type OnChunk = (audio: Blob, seq: number, startSec: number) => Promise<void>;
+type OnChunk = (audio: Blob, seq: number, startSec: number, final: boolean) => Promise<void>;
 
 /** Audio-only recorder with an elapsed timer and a rolling mic-level history for the waveform. */
 export function useAudioRecorder(onChunk: OnChunk) {
@@ -50,14 +53,22 @@ export function useAudioRecorder(onChunk: OnChunk) {
       const recorder = new MediaRecorder(stream);
       const parts: Blob[] = [];
       const segmentStart = Date.now() - startedAt;
-      recorder.ondataavailable = (e) => e.data.size > 0 && parts.push(e.data);
+      const segmentSeq = seq++;
+      const startSec = Math.floor(segmentStart / 1000);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) parts.push(e.data);
+        // Everything recorded so far in this piece is a valid (just shorter) audio file: send it as a preview.
+        if (recorder.state === "recording" && parts.length > 0) {
+          void onChunkRef.current(new Blob(parts, { type: recorder.mimeType }), segmentSeq, startSec, false);
+        }
+      };
       recorder.onstop = () => {
         const duration = Date.now() - startedAt - segmentStart;
         if (duration < MIN_SEGMENT_MS || parts.length === 0) return;
         const audio = new Blob(parts, { type: recorder.mimeType });
-        pendingRef.current.push(onChunkRef.current(audio, seq++, Math.floor(segmentStart / 1000)));
+        pendingRef.current.push(onChunkRef.current(audio, segmentSeq, startSec, true));
       };
-      recorder.start();
+      recorder.start(PREVIEW_MS);
       currentRef.current = recorder;
       segmentTimerRef.current = setTimeout(() => {
         recorder.stop();

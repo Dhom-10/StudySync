@@ -3,21 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Check, PanelLeft, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, ChevronRight, Check } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { AnimatedSummary } from "@/components/summary-stream";
+import { ScrollFade } from "@/components/scroll-fade";
+import { SessionsSidebar } from "@/components/sessions-sidebar";
+import { SummaryStream } from "@/components/summary-stream";
+import { Words, splitWords } from "@/components/words";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { ShimmerButton } from "@/components/ui/shimmer-button";
 import {
   Tooltip,
   TooltipContent,
@@ -26,6 +20,7 @@ import {
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import {
   useAddChunk,
+  useClearLessons,
   useCreateLesson,
   useDeleteLesson,
   useFinishLesson,
@@ -35,24 +30,14 @@ import {
 import { useLocalAuth } from "@/hooks/use-local-auth";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { WritingText } from "@/components/ui/writing-text";
+import { ShimmeringText } from "@/components/ui/shimmering-text";
 
 // Two Control taps closer together than this count as a double tap.
 const HOTKEY_WINDOW_MS = 400;
 
 function formatTime(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-// createdAt is an ISO timestamp (UTC); show it in the viewer's local time.
-function formatSessionDate(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 function errorMessage(err: unknown) {
@@ -68,6 +53,7 @@ export default function DemoPage() {
   const addChunk = useAddChunk();
   const finishLesson = useFinishLesson();
   const deleteLesson = useDeleteLesson();
+  const clearLessons = useClearLessons();
 
   const [lessonId, setLessonId] = useState<number | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -78,13 +64,20 @@ export default function DemoPage() {
     Promise.resolve(null),
   );
 
-  const recorder = useAudioRecorder(async (audio, seq, start) => {
+  const recorder = useAudioRecorder(async (audio, seq, start, final) => {
     const id = await lessonPromiseRef.current;
     if (id === null) return;
-    // One retry, so a brief hiccup doesn't leave a hole in the transcript.
+    if (!final) {
+      // A preview is best-effort: the finished piece will cover it if this one fails.
+      await addChunk
+        .mutateAsync({ id, audio, seq, start, final })
+        .catch(() => {});
+      return;
+    }
+    // The finished piece gets one retry, so a brief hiccup doesn't leave a hole in the transcript.
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await addChunk.mutateAsync({ id, audio, seq, start });
+        await addChunk.mutateAsync({ id, audio, seq, start, final });
         return;
       } catch (err) {
         if (attempt === 1) setRequestError(errorMessage(err));
@@ -93,14 +86,8 @@ export default function DemoPage() {
   });
   const lesson = useLesson(lessonId).data;
   const sessions = useLessons().data ?? [];
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () =>
-      typeof window === "undefined" ||
-      window.matchMedia("(min-width: 1024px)").matches,
-  );
-
-  // Which session's delete popover is open (null = none).
-  const [confirmId, setConfirmId] = useState<number | null>(null);
+  // Closed by default; the chevron next to the status opens it.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Hotkey: tapping Control twice quickly starts or stops recording. The handler is kept in a ref so the
   // keydown listener (registered once) always calls the latest version.
@@ -154,12 +141,16 @@ export default function DemoPage() {
   const processing = finishLesson.isPending || lesson?.status === "processing";
   const summary = lesson?.summary;
   const segments = lesson?.segments ?? [];
+  // Words fade in as they are heard; an old session opened from the sidebar is shown as plain text.
+  const liveTranscript =
+    !!lesson && (lesson.status === "recording" || lesson.id === streamingId);
   const shownError =
     recorder.error ??
     requestError ??
     (lesson?.status === "recording" ? lesson.error : null);
 
   async function handleStart() {
+    discardIfFailed();
     setLessonId(null);
     setRequestError(null);
     finishLesson.reset();
@@ -186,8 +177,21 @@ export default function DemoPage() {
     });
   }
 
+  function handleClearAll() {
+    clearLessons.mutate(undefined, {
+      onSuccess: () => openSession(null),
+      onError: (err) => setRequestError(errorMessage(err)),
+    });
+  }
+
+  // A session that failed is never kept: once the user moves on, it is deleted.
+  function discardIfFailed() {
+    if (lesson?.status === "error") deleteLesson.mutate(lesson.id);
+  }
+
   // Switch what the page shows: a past session, or (null) a fresh empty one.
   function openSession(id: number | null) {
+    discardIfFailed();
     setLessonId(id);
     setRequestError(null);
     setStreamingId(null);
@@ -195,7 +199,6 @@ export default function DemoPage() {
   }
 
   function handleDelete(id: number) {
-    setConfirmId(null);
     deleteLesson.mutate(id, {
       onSuccess: () => id === lessonId && openSession(null),
       onError: (err) => setRequestError(errorMessage(err)),
@@ -227,134 +230,44 @@ export default function DemoPage() {
           </div>
         </SiteHeader>
 
-        <div className="flex h-12 shrink-0 items-center gap-4 border-b border-foreground/10 px-6 sm:px-14">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="-ml-2"
-                  aria-label={sidebarOpen ? "Close sessions" : "Open sessions"}
-                  aria-expanded={sidebarOpen}
-                  onClick={() => setSidebarOpen((o) => !o)}
-                />
-              }
-            >
-              <PanelLeft />
-            </TooltipTrigger>
-            <TooltipContent>
-              {sidebarOpen ? "Close sessions" : "Open sessions"}
-            </TooltipContent>
-          </Tooltip>
-          <span className="label-mono normal-case tracking-normal">
-            StudySync · Live demo
-          </span>
-        </div>
-
         <div className="flex flex-1 max-lg:flex-col lg:min-h-0">
           {sidebarOpen && (
-            <aside className="flex shrink-0 flex-col gap-4 border-foreground/10 bg-card p-4 lg:w-64 lg:overflow-y-auto lg:border-r max-lg:border-b">
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                disabled={recorder.recording}
-                onClick={() => openSession(null)}
-              >
-                <Plus className="size-4" /> New session
-              </Button>
-              <h2 className="label-mono px-2">Sessions</h2>
-              {sessions.length === 0 ? (
-                <p className="px-2 text-sm text-muted-foreground">
-                  No sessions yet.
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-1 max-lg:max-h-60 max-lg:overflow-y-auto">
-                  {sessions.map((s) => (
-                    <li key={s.id} className="group relative">
-                      <Button
-                        variant={s.id === lessonId ? "default" : "ghost"}
-                        disabled={recorder.recording}
-                        onClick={() => openSession(s.id)}
-                        className="h-auto w-full flex-col items-start gap-0 py-2 pr-9 pl-2 text-left font-normal"
-                      >
-                        <span className="block w-full truncate text-sm font-medium">
-                          {s.title}
-                        </span>
-                        <span className="label-mono block text-[11px] normal-case tracking-normal opacity-70">
-                          {formatSessionDate(s.createdAt)}
-                          {s.status === "recording" && " · Recording"}
-                          {s.status === "processing" && " · Processing"}
-                          {s.status === "error" && " · Failed"}
-                        </span>
-                      </Button>
-                      <Popover
-                        open={confirmId === s.id}
-                        onOpenChange={(open) =>
-                          setConfirmId(open ? s.id : null)
-                        }
-                      >
-                        <PopoverTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Delete ${s.title}`}
-                              title={
-                                s.status === "processing"
-                                  ? "Wait for this session to finish"
-                                  : "Delete session"
-                              }
-                              disabled={
-                                recorder.recording ||
-                                deleteLesson.isPending ||
-                                s.status === "processing"
-                              }
-                              className={cn(
-                                "absolute top-1/2 right-1 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 max-lg:opacity-100 max-lg:disabled:opacity-30",
-                                confirmId === s.id && "opacity-100",
-                              )}
-                            />
-                          }
-                        >
-                          <Trash2 />
-                        </PopoverTrigger>
-                        <PopoverContent align="end" className="w-60">
-                          <PopoverHeader>
-                            <PopoverTitle>Delete this session?</PopoverTitle>
-                            <PopoverDescription>
-                              Its transcript and summary will be removed.
-                            </PopoverDescription>
-                          </PopoverHeader>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setConfirmId(null)}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDelete(s.id)}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </aside>
+            <SessionsSidebar
+              sessions={sessions}
+              activeId={lessonId}
+              locked={recorder.recording}
+              deleting={deleteLesson.isPending}
+              onNew={() => openSession(null)}
+              onSelect={openSession}
+              onDelete={handleDelete}
+              onClearAll={handleClearAll}
+              clearing={clearLessons.isPending}
+              onClose={() => setSidebarOpen(false)}
+            />
           )}
 
           <div className="grid min-w-0 flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)]">
-            <section className="min-w-0 px-6 py-8 sm:px-14 lg:overflow-y-auto lg:border-r lg:border-foreground/10">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5 text-lg">
+            <section className="flex min-h-0 min-w-0 flex-col px-6 py-8 sm:px-14 lg:overflow-hidden lg:border-r lg:border-foreground/10">
+              <div className="flex h-10 items-center justify-between">
+                <div className="relative flex items-center gap-2.5 text-lg">
+                  {!sidebarOpen && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="max-sm:-ml-2 sm:absolute sm:top-1/2 sm:right-full sm:mr-3 sm:-translate-y-1/2"
+                            aria-label="Open sessions"
+                            onClick={() => setSidebarOpen(true)}
+                          />
+                        }
+                      >
+                        <ChevronRight />
+                      </TooltipTrigger>
+                      <TooltipContent>Open sessions</TooltipContent>
+                    </Tooltip>
+                  )}
                   <span
                     className={cn(
                       "size-3.5 rounded-full",
@@ -364,11 +277,13 @@ export default function DemoPage() {
                     )}
                   />
                   <strong>
-                    {recorder.recording
-                      ? "Recording"
-                      : processing
-                        ? "Processing"
-                        : "Ready"}
+                    {recorder.recording ? (
+                      "Recording"
+                    ) : processing ? (
+                      <ShimmeringText text="Processing" />
+                    ) : (
+                      "Ready"
+                    )}
                   </strong>
                 </div>
                 <span className="label-mono text-base text-foreground">
@@ -400,27 +315,43 @@ export default function DemoPage() {
               </div>
 
               <h2 className="label-mono mb-2">Live transcript</h2>
-              {segments.length > 0 ? (
-                <div className="grid gap-3">
-                  {segments.map((seg, i) => (
-                    <div
-                      key={i}
-                      className="grid grid-cols-[58px_1fr] gap-2.5 text-lg leading-snug"
-                    >
-                      <time className="label-mono pt-0.5 normal-case tracking-normal">
-                        {formatTime(seg.start)}
-                      </time>
-                      <p>{seg.text}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  {recorder.recording
-                    ? "Listening… the first lines appear after a few seconds."
-                    : "Press Start and speak. The transcript shows up here as you talk."}
-                </p>
-              )}
+              <ScrollFade
+                className="min-h-48 flex-1 max-lg:max-h-72"
+                follow={liveTranscript}
+                watch={lesson?.segments}
+              >
+                {segments.length > 0 ? (
+                  <div className="grid gap-3 py-1">
+                    {segments.map((seg) => (
+                      <div
+                        key={seg.seq}
+                        className="grid grid-cols-[58px_1fr] gap-2.5 text-lg leading-snug"
+                      >
+                        <time className="label-mono pt-0.5 normal-case tracking-normal">
+                          {formatTime(seg.start)}
+                        </time>
+                        <p>
+                          <Words
+                            words={splitWords(seg.text)}
+                            animate={liveTranscript}
+                          />
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    className="text-muted-foreground"
+                    role={recorder.recording ? "status" : undefined}
+                  >
+                    {recorder.recording ? (
+                      <ShimmeringText text="Listening… the first words appear in a moment." />
+                    ) : (
+                      "Press Start and speak. The transcript shows up here as you talk."
+                    )}
+                  </p>
+                )}
+              </ScrollFade>
 
               {shownError && (
                 <Alert variant="destructive" className="mt-4">
@@ -441,15 +372,9 @@ export default function DemoPage() {
                   </Button>
                 )}
                 {recorder.recording && (
-                  <ShimmerButton
-                    shimmerColor="var(--highlight)"
-                    background="var(--foreground)"
-                    borderRadius="6px"
-                    className="pointer-events-none px-5 py-3 text-sm font-semibold"
-                    tabIndex={-1}
-                  >
-                    Transcribing…
-                  </ShimmerButton>
+                  <p role="status" className="text-base font-medium">
+                    <ShimmeringText text="Transcribing…" />
+                  </p>
                 )}
                 {!recorder.recording && (
                   <Button
@@ -476,9 +401,9 @@ export default function DemoPage() {
             </section>
 
             <section className="min-w-0 border-t border-foreground/10 px-6 py-8 sm:px-14 lg:overflow-y-auto lg:border-t-0">
-              <div className="mb-5 flex items-start justify-between gap-5">
+              <div className="mb-5 flex h-10 items-center justify-between gap-5">
                 <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">
-                  Summary
+                  <WritingText text="Summary" />
                 </h1>
                 {summary && !summaryEmpty && (
                   <p className="flex items-center gap-1.5 text-sm font-medium">
@@ -488,17 +413,15 @@ export default function DemoPage() {
               </div>
 
               {processing && (
-                <ShimmerButton
-                  shimmerColor="var(--highlight)"
-                  background="var(--foreground)"
-                  borderRadius="6px"
-                  className="pointer-events-none px-5 py-3 text-sm font-semibold"
-                  tabIndex={-1}
-                >
-                  {lesson?.stage === "summarizing"
-                    ? "Summarizing…"
-                    : "Thinking…"}
-                </ShimmerButton>
+                <p role="status" className="text-base font-medium">
+                  <ShimmeringText
+                    text={
+                      lesson?.stage === "summarizing"
+                        ? "Summarizing…"
+                        : "Thinking…"
+                    }
+                  />
+                </p>
               )}
 
               {lesson?.status === "error" && (
@@ -525,7 +448,7 @@ export default function DemoPage() {
               )}
 
               {summary && !summaryEmpty && lesson && (
-                <AnimatedSummary
+                <SummaryStream
                   key={lesson.id}
                   summary={summary}
                   animate={lesson.id === streamingId}

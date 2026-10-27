@@ -1,4 +1,4 @@
-import type { Lesson, User } from "./types";
+import type { ChunkResult, Lesson, User } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
@@ -46,15 +46,18 @@ export const authApi = {
 
 export const lessonsApi = {
   create: () => post<{ id: number }>("/lessons"),
-  addChunk: (id: number, audio: Blob, seq: number, start: number) => {
+  // `final` false = a growing preview of the piece still being recorded; true = the finished piece.
+  addChunk: (id: number, audio: Blob, seq: number, start: number, final: boolean) => {
     const form = new FormData();
     form.append("audio", audio, "chunk");
     form.append("seq", String(seq));
     form.append("start", String(start));
-    return request<{ ok: true }>(`/lessons/${id}/chunks`, { method: "POST", body: form });
+    form.append("final", final ? "1" : "0");
+    return request<ChunkResult>(`/lessons/${id}/chunks`, { method: "POST", body: form });
   },
   finish: (id: number) => post<{ ok: true }>(`/lessons/${id}/finish`),
   get: (id: number) => request<Lesson>(`/lessons/${id}`),
   list: () => request<Lesson[]>("/lessons"),
+  clear: () => request<{ deleted: number }>("/lessons", { method: "DELETE" }),
   remove: (id: number) => request<void>(`/lessons/${id}`, { method: "DELETE" }),
 };

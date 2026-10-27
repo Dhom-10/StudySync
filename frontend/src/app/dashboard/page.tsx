@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLocalAuth } from "@/hooks/use-local-auth";
 import { cn } from "@/lib/utils";
+import { WritingText } from "@/components/ui/writing-text";
 
 const BARS = [
   14, 25, 35, 22, 42, 28, 18, 30, 39, 46, 29, 21, 36, 44, 50, 31, 20, 39, 48,
@@ -152,7 +153,7 @@ export default function DashboardPage() {
           <section className="min-w-0 border-t border-foreground/10 px-6 py-8 sm:px-14 lg:border-t-0">
             <div className="mb-5 flex items-start justify-between gap-5">
               <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">
-                Summary
+                <WritingText text="Summary" />
               </h1>
               <p
                 className={cn(

@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { useLocalAuth } from "@/hooks/use-local-auth";
+import { WritingText } from "@/components/ui/writing-text";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,8 +34,12 @@ export default function LoginPage() {
         <div className="grid flex-1 grid-cols-1 lg:grid-cols-2">
           <div className="flex flex-col justify-center px-6 py-16 sm:px-14">
             <div className="w-full max-w-sm">
-              <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">Log in to StudySync</h1>
-              <p className="mt-2 text-muted-foreground">Pick up where you left off.</p>
+              <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">
+                <WritingText text="Log in to StudySync" />
+              </h1>
+              <p className="mt-2 text-muted-foreground">
+                Pick up where you left off.
+              </p>
 
               <Button
                 onClick={login}
@@ -53,14 +58,21 @@ export default function LoginPage() {
             <div className="relative z-10 flex flex-col gap-6 p-14">
               <span className="label-mono">StudySync</span>
               <h2 className="font-display text-5xl leading-[1.05] font-extrabold tracking-[-0.02em] [font-stretch:75%]">
-                Stop writing.
-                <br />
-                Start listening.
+                <WritingText
+                  text={"Stop writing.\nStart listening."}
+                  speed={40}
+                />
               </h2>
               <p className="max-w-sm text-lg leading-snug">
-                Record your class, get a live transcript, and a plain-language summary when it ends.
+                Record your class, get a live transcript, and a plain-language
+                summary when it ends.
               </p>
-              <Button render={<Link href="/#how-it-works" />} nativeButton={false} variant="outline" className="h-auto w-fit px-6 py-3">
+              <Button
+                render={<Link href="/#how-it-works" />}
+                nativeButton={false}
+                variant="outline"
+                className="h-auto w-fit px-6 py-3"
+              >
                 See how it works
               </Button>
             </div>

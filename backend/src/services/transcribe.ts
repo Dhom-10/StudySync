@@ -27,13 +27,19 @@ export async function transcribe(audio: Buffer): Promise<string> {
     await run(process.env.FFMPEG_BIN ?? "ffmpeg", ["-y", "-i", input, "-ar", "16000", "-ac", "1", wav]);
     await run(process.env.WHISPER_BIN ?? "whisper-cli", [
       "-m",
-      process.env.WHISPER_MODEL_PATH ?? "./models/ggml-tiny.en.bin",
+      process.env.WHISPER_MODEL_PATH ?? "./models/ggml-small.en.bin",
       "-f",
       wav,
       "-otxt",
       "-of",
       outBase,
       "-np",
+      // Greedy decoding (the default is beam search with 5 candidates): much faster, same text for speech this clear.
+      "-bs",
+      "1",
+      "-bo",
+      "1",
+      "-nf",
     ]);
 
     return (await readFile(`${outBase}.txt`, "utf8")).trim();

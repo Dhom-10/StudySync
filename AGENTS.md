@@ -18,7 +18,7 @@ old Prisma/Postgres/JWT setup wholesale.
 | -------- | ----------------------------------------------------------------------- |
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui, TanStack Query, Zustand, next-themes |
 | Backend  | Node.js + Hono + TypeScript (ESM, `.js` import extensions) + SQLite (`node:sqlite`); lesson pipeline only, no auth |
-| Audio    | `/dashboard/demo`: MediaRecorder (audio only, cut into ~8 s chunks for a live transcript) -> backend -> ffmpeg -> whisper.cpp (tiny.en) -> Ollama (llama3.2:3b), all local. |
+| Audio    | `/dashboard/demo`: MediaRecorder (audio only, cut into ~4 s pieces with 1.5 s previews for a live transcript) -> backend -> ffmpeg -> whisper.cpp (small.en) -> Ollama (llama3.2:3b), all local. |
 
 The frontend's data fetching hooks and `frontend/src/lib/api.ts` already expect a fuller API
 (`/auth/*`, `/subjects`, `/lessons`, `/assignments`, `/summarize`, `/users/me`, `/stats`,
@@ -53,7 +53,7 @@ studysync/
 ## Running it locally
 
 One-time setup for the `/dashboard/demo` pipeline: `brew install ffmpeg whisper-cpp ollama`,
-`ollama pull llama3.2:3b`, and download `ggml-tiny.en.bin` into `backend/models/` (see
+`ollama pull llama3.2:3b`, and download `ggml-small.en.bin` into `backend/models/` (see
 `backend/.env.example` for the env vars). Start Ollama (`ollama serve`) before using `/dashboard/demo`.
 `/dashboard` is the static mock (it has a "Try the live demo" button) and `/dashboard/demo` is the real pipeline; keep both.
 
