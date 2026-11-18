@@ -9,7 +9,7 @@ with a small model through Ollama. No audio or text leaves your computer, and no
 ## How it works
 
 ```
-Browser (audio only, cut into ~8 s pieces while you record)
+Browser (audio only, cut into ~4 s pieces while you record)
    │  POST /api/lessons/:id/chunks   (one request per piece)
    ▼
 Hono backend ── ffmpeg ──▶ 16 kHz mono wav ──▶ whisper.cpp (small.en) ──▶ transcript lines
@@ -19,8 +19,9 @@ Hono backend ── ffmpeg ──▶ 16 kHz mono wav ──▶ whisper.cpp (smal
 ```
 
 1. **Start recording** on the demo page. A lesson (session) is created.
-2. Every ~8 seconds the browser sends the latest audio piece. The backend transcribes it and the
-   line shows up on the left with its timestamp (expect a delay of roughly 8 to 12 seconds).
+2. Every ~4 seconds the browser sends the finished audio piece (plus a growing preview every 1.5 s).
+   The backend transcribes it and the line shows up on the left with its timestamp
+   (expect a delay of a few seconds).
 3. **Stop** sends the last piece and asks the backend to finish. It joins the transcript lines,
    asks the Ollama model for a structured summary, and saves it.
 4. The browser polls the lesson and fills in the summary on the right. Sections with nothing
@@ -53,7 +54,9 @@ Whisper and the language model never run at the same time: jobs are processed on
 
 ## Setup (once)
 
-You need Node.js 24 (tested; the backend uses the built-in `node:sqlite`) and [Homebrew](https://brew.sh).
+You need Node.js 24 (tested; 22.13 or newer also works, the backend uses the built-in `node:sqlite`) and [Homebrew](https://brew.sh).
+
+**On Windows?** Follow [SETUP-WINDOWS.md](SETUP-WINDOWS.md) instead.
 
 ```bash
 # 1. Tools
@@ -173,7 +176,8 @@ SELECT lesson_id, seq, start_sec, text FROM segments ORDER BY lesson_id, seq;
 ## Limits
 
 - No real authentication yet: login is a `localStorage` flag, and all sessions are visible to anyone using the app.
-- Long recordings: the summary only reads roughly the first 24,000 characters of the transcript.
+- Long recordings: the summary only reads roughly the first 24,000 characters of the transcript
+  (about 28 minutes of speech). See bug B1 in [TESTING.md](TESTING.md).
 - Words at the boundary between two audio pieces can be clipped, and the Whisper model still makes occasional mistakes.
 - Audio itself is not stored, only the transcript and summary.
-- No automated tests yet.
+- No automated tests yet. See [TESTING.md](TESTING.md) for the manual checklist and the bug list.
